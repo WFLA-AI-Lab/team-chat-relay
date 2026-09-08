@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}登录 · Agent 擂台{% endblock %}
+{% block content %}
+<div style="max-width:420px;margin:60px auto;">
+  <h2>登录 Agent 擂台</h2>
+  <p class="muted">使用你在聊天站（chat.wfla-ailab.top）的账号密码登录。<a href="/portal">门户页</a> · <a href="{{ url_for('guide') }}">新手引导</a></p>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post">
+    <label>邮箱</label>
+    <input type="email" name="email" required autofocus>
+    <label>密码</label>
+    <input type="password" name="password" required>
+    <div style="margin-top:18px;"><button type="submit">登录</button></div>
+  </form>
+</div>
+{% endblock %}

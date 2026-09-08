@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}创建 Agent · Agent 擂台{% endblock %}
+{% block content %}
+<h2>创建你的 Agent</h2>
+<p class="muted">填写越详细，越容易被大家认可和投票。提交后会自动用「示例问题」试跑一遍，然后进入管理员审核。</p>
+<div class="banner" style="margin-bottom:16px;">
+  <span style="color:#c4b5fd;">本周主题：</span>{{ theme }}
+</div>
+<div class="card" style="margin-bottom:16px;">
+  <b>从模板开始</b> <span class="muted">（新手推荐：选一个模板自动填好整张表，再按你的想法修改）</span>
+  <div><select id="tpl-select" style="margin-top:10px; width:100%;">
+    <option value="">—— 点这里选一个模板 ——</option>
+  </select></div>
+  <div class="muted" id="tpl-hint" style="margin-top:6px; display:none;">已按模板填好，可以直接提交，也可以继续修改。</div>
+</div>
+<script>
+var TEMPLATES = [
+  { name: "数学解题教练", tag: "学习", model: "deepseek-reasoner", temperature: "0.3", max_tokens: "4096",
+    description: "不直接给答案，一步步引导你自己想通",
+    system: "你是一位耐心的高中数学教练。学生给你题目时不要直接报答案：先用一两句话点出这道题考查的知识点，再一步一步引导（每次只给一层提示，让学生先自己想），学生确实卡住了才多给一层；最后给出完整规范的解题过程和答案，并用一句话总结这类题的通用思路。全程使用中文，公式用文字或简单符号写清楚。",
+    example: "函数 f(x)=x^2-2ax+3 在区间 [1,3] 上的最小值怎么求？" },
+  { name: "竞赛答疑助手", tag: "学习", model: "deepseek-reasoner", temperature: "0.3", max_tokens: "4096",
+    description: "信息学/物理竞赛题的深推理讲解",
+    system: "你是竞赛答疑助手，负责信息学（算法）和物理竞赛题。讲解顺序固定：一、题目在考什么（对应的知识点）；二、思路是怎么一步步想到的（包括常见的错误方向，为什么走不通）；三、完整解法（代码题给出可编译的完整代码并逐段注释）；四、同类题的变形套路。学生问哪一步就展开哪一步，不要一次性全部倒出来。",
+    example: "这道动态规划题：最少硬币组合问题，为什么贪心不对？" },
+  { name: "作文点评助手", tag: "学习", model: "deepseek-chat", temperature: "0.7", max_tokens: "4096",
+    description: "按审题/结构/语言/素材四项逐段点评",
+    system: "你是一位高中语文老师。学生贴出作文后，你按「审题、结构、语言、素材」四项各给一小段点评，每项先说亮点再说问题；然后给出两三条具体可操作的修改建议，并示范改写其中一个段落让学生对照。语气鼓励但直接，不说「写得不错继续努力」这种空话。",
+    example: "这是我议论文的开头段，帮我看看问题在哪。" },
+  { name: "英语口语陪练", tag: "学习", model: "deepseek-chat", temperature: "0.8", max_tokens: "2048",
+    description: "一问一答练口语，每轮只纠两处错",
+    system: "你是一位英语口语陪练。每轮对话：先用简单英语提一个问题或回应学生；学生用英语回复后，指出其中 1-2 处语法或用词问题，给出更地道的说法并简单解释，然后自然地把话题聊下去。难度从简单逐步进阶，每轮纠正不超过两处，避免打击积极性。学生用中文提问时，提醒他尽量用英语说。",
+    example: "Let's practice: talk about your favorite subject in school." },
+  { name: "单词记忆卡片", tag: "学习", model: "deepseek-chat", temperature: "0.8", max_tokens: "2048",
+    description: "词根联想 + 例句 + 易混词辨析",
+    system: "你是单词记忆助手。学生给你一个英文单词后，你输出：一、发音要点和词性；二、用词根词缀联想记忆法讲一个帮助记住的故事或画面；三、两个贴近高中生活的例句（一个简单一个进阶）；四、列出 1-2 个最容易混淆的词并说明区别。每次只讲一个单词，讲完问学生要不要测验一下之前学过的。",
+    example: "ambivalent 这个词怎么记？" },
+  { name: "面试模拟官", tag: "社团", model: "deepseek-chat", temperature: "0.7", max_tokens: "2048",
+    description: "一次只问一个问题，答完逐题点评",
+    system: "你是社团招新面试的模拟考官。先问学生想面试什么岗位，然后一次只问一个问题（顺序：自我介绍、相关经历、为什么想加入、对社团的期待、反问环节）。学生每答完一题，用两句话点评（一句说好在哪，一句说怎么改），再问下一题。全部问完后给出整体评价和三条具体的准备建议。",
+    example: "我想准备下周的社团面试。" },
+  { name: "代码调试助手", tag: "学习", model: "deepseek-chat", temperature: "0.3", max_tokens: "4096",
+    description: "先指原因，再给关键修改片段",
+    system: "你是代码调试助手。学生贴出报错或代码后：先用一句话指出最可能的出错原因，再只给出需要修改的关键代码片段（不要整段重发），最后用一句话解释为什么这样改。如果信息不够，先问清楚编程语言、完整报错信息和想实现什么，再动手。支持 Python、C++、JavaScript 等常见语言。",
+    example: "Python 报错 IndexError: list index out of range，帮我看看。" },
+  { name: "学习计划规划师", tag: "其它", model: "deepseek-chat", temperature: "0.7", max_tokens: "2048",
+    description: "把大目标拆成每日可执行的小任务",
+    system: "你是学习计划规划师。学生说出目标和可用时间后，你把大目标拆成周计划和每日任务，每天任务总量不超过 90 分钟，并给每个任务标注：做什么、做多久、怎么检验做没做成。每周留一天缓冲日用来补进度。计划必须具体，不接受「好好学习」「多刷题」这种空话。学生坚持了一段时间回来汇报时，根据完成情况调整下一周的计划。",
+    example: "我想在一个月内背完 500 个高考核心词，每天只有半小时。" }
+];
+(function () {
+  var sel = document.getElementById("tpl-select");
+  var hint = document.getElementById("tpl-hint");
+  TEMPLATES.forEach(function (t, i) {
+    var o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = t.name + "（" + t.tag + "）";
+    sel.appendChild(o);
+  });
+  sel.addEventListener("change", function () {
+    var t = TEMPLATES[sel.value];
+    if (!t) { hint.style.display = "none"; return; }
+    var f = document.querySelector("form");
+    var e = function (n) { return f.elements[n]; };
+    e("name").value = t.name;
+    e("tag").value = t.tag;
+    e("description").value = t.description;
+    e("system").value = t.system;
+    e("example").value = t.example;
+    e("model").value = t.model;
+    e("temperature").value = t.temperature;
+    e("max_tokens").value = t.max_tokens;
+    hint.style.display = "block";
+  });
+})();
+</script>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% if success %}
+  <div class="success">{{ success }}</div>
+  {% if test_result %}
+    <div class="card">
+      <b>自动试跑结果</b> <span class="muted">（{{ tested_at }}）</span>
+      <div class="test-result">{{ test_result }}</div>
+    </div>
+  {% endif %}
+{% endif %}
+<form method="post">
+  <div class="row">
+    <div>
+      <label>名称 *</label>
+      <input name="name" value="{{ form.get('name','') }}" placeholder="例如：数学竞赛教练" required>
+    </div>
+    <div>
+      <label>分类 *</label>
+      <select name="tag">
+        {% for t in tags %}<option value="{{ t }}" {% if form.get('tag') == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <label>一句话介绍（会显示在擂台上）</label>
+  <input name="description" value="{{ form.get('description','') }}" placeholder="这个 Agent 是做什么的？">
+  <label>系统提示词（System Prompt）* —— 这是 Agent 的人设/规则，写得好不好决定它强不强</label>
+  <textarea name="system" required placeholder="例如：你是高中数学竞赛教练，先引导思考再给答案……">{{ form.get('system','') }}</textarea>
+  <div class="row">
+    <div>
+      <label>基础模型</label>
+      <select name="model">
+        {% for m in models %}
+          <option value="{{ m }}" {% if form.get('model') == m %}selected{% endif %}>
+            {{ 'DeepSeek-V3（快，日常问答）' if m == 'deepseek-chat' else 'DeepSeek-R1（深推理，慢但严谨）' }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>示例问题（提交时会自动试跑这个，展示在卡片上方便别人试聊）</label>
+      <input name="example" value="{{ form.get('example','') }}" placeholder="例如：这道竞赛题怎么做？">
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label>温度 temperature（0~2，越高越有创意，越低越严谨）</label>
+      <input type="number" name="temperature" step="0.1" min="0" max="2" value="{{ form.get('temperature','0.7') }}">
+    </div>
+    <div>
+      <label>最大输出 token（回答长度上限）</label>
+      <input type="number" name="max_tokens" min="1" max="8192" value="{{ form.get('max_tokens','2048') }}">
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label>top_p（核采样，一般保持 1）</label>
+      <input type="number" name="top_p" step="0.05" min="0" max="1" value="{{ form.get('top_p','1') }}">
+    </div>
+  </div>
+  <div style="margin-top:18px;"><button type="submit">提交审核</button></div>
+</form>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}新手引导 · Agent 擂台{% endblock %}
+{% block content %}
+<h2>新手引导</h2>
+
+<div class="card">
+  <h3 style="margin-top:0;">1. 我是成员，怎么用？</h3>
+  <ol style="line-height:1.9;">
+    <li>用管理员给你的<b>聊天站账号</b>（chat.wfla-ailab.top 的邮箱+密码）在这里登录。</li>
+    <li>在<b>擂台</b>页浏览大家的 Agent，点「试聊」直接对话，点「收藏」收藏，点「预览」看它的系统提示词。</li>
+    <li>在主站聊天站（chat.wfla-ailab.top）里，也可以直接用模型选择器里「已上架」的 Agent。</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">2. 我想创建自己的 Agent</h3>
+  <ol style="line-height:1.9;">
+    <li>进「创建 Agent」，认真填：<b>系统提示词</b>最重要（决定人设和规则），再填一句介绍和示例问题。</li>
+    <li>提交时系统会<b>自动试跑</b>你的示例问题，把回答给你看——先自己满意再交。</li>
+    <li>提交后进入「待审核」，管理员通过后就上架擂台，所有人能试聊、收藏和留言。</li>
+    <li>想改？目前需要联系管理员；以后会加编辑功能。</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">3. 每周主题</h3>
+  <ul style="line-height:1.9;">
+    <li>每周有一个<b>主题</b>（擂台顶部显示），你的 Agent 尽量贴合主题。</li>
+    <li>每周主题只是创作方向，不强制。</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">4. 规则与安全（必读）</h3>
+  <ul style="line-height:1.9;">
+    <li>不要在聊天里发<b>密码、身份证号、家庭住址</b>等隐私。</li>
+    <li>不要拿擂台当免费 API 刷量——试聊有限流，浪费预算会被管理员限号。</li>
+    <li>不要做涉及暴力、违法、仇恨内容的 Agent。</li>
+    <li>试聊/投票前先看看别人的 <b>自动试跑结果</b>，好的 Agent 值得学习。</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">5. 把 Agent 串成工作流（流水线）</h3>
+  <ol style="line-height:1.9;">
+    <li>你创建并上架的 Agent 可以当成「积木块」，把它们按顺序串成一条流水线（也叫工作流）。</li>
+    <li>在「流水线」页点「新建流水线」，给每一步选一个你创建的 Agent（或留空、自己写指令），再写这一步要处理什么。</li>
+    <li>运行时，你的输入会依次经过每一步：第 1 步的输出自动变成第 2 步的输入，最后得到最终结果。每一步实际收到和产出的内容都能点开看，数据全程可见。</li>
+    <li>步骤引用的是 Agent 本身，不是复制一份：你之后改进了某个 Agent，用到它的流水线会自动跟上；万一那个 Agent 被删了，流水线会用创建时存的备份版本兜底。</li>
+    <li>不选 Agent 的「自定义步骤」也支持，适合写一段专门的指令（例如固定的审查规则）。</li>
+    <li>你是作者（或管理员）就能随时「编辑」流水线的名称、说明和步骤（包括换 Agent）；点「共享给全社团」后，其他成员也能运行它。</li>
+  </ol>
+</div>
+{% endblock %}

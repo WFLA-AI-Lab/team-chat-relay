@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}我的 · Agent 擂台{% endblock %}
+{% block content %}
+<h2>我创建的</h2>
+<div class="grid">
+{% for a in mine_rows %}
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <h3 style="margin:0;font-size:16px;">{{ a['name'] }}</h3>
+      <span class="tag tag-{{ a['tag'] }}">{{ a['tag'] }}</span>
+      <span class="status status-{{ a['status'] }}">{{ {'pending':'待审核','approved':'已上架','rejected':'未通过'}[a['status']] }}</span>
+    </div>
+    <p class="muted" style="margin:8px 0;">{{ a['created_at'] }}</p>
+    <p style="margin:8px 0;font-size:14px;">{{ a['description'] }}</p>
+    {% if a['test_result'] %}
+      <div class="test-result"><b>自动试跑：</b>{{ a['test_result'] }}</div>
+    {% endif %}
+  </div>
+{% else %}
+  <p class="muted">你还没创建过 Agent，<a href="{{ url_for('create') }}">去创建一个</a>！</p>
+{% endfor %}
+</div>
+
+<h2 style="margin-top:26px;">我收藏的</h2>
+<div class="grid">
+{% for a in fav_rows %}
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <h3 style="margin:0;font-size:16px;">{{ a['name'] }}</h3>
+      <span class="tag tag-{{ a['tag'] }}">{{ a['tag'] }}</span>
+      <span class="muted">by {{ a['author_name'] }}</span>
+    </div>
+    <p style="margin:8px 0;font-size:14px;">{{ a['description'] }}</p>
+  </div>
+{% else %}
+  <p class="muted">还没有收藏，去擂台逛逛吧。</p>
+{% endfor %}
+</div>
+
+<h2 style="margin-top:26px;">收到的留言</h2>
+<div class="card">
+{% for c in my_comments %}
+  <div class="comment">
+    <span class="muted">{{ c['user_name'] }} 在「{{ c['agent_name'] }}」下留言：</span>{{ c['content'] }}
+    <span class="muted" style="float:right;">{{ c['created_at'] }}</span>
+  </div>
+{% else %}
+  <p class="muted">还没有人给你的 Agent 留言。</p>
+{% endfor %}
+</div>
+{% endblock %}

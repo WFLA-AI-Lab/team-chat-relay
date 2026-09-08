@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}AI 社团教程站{% endblock %}</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Microsoft YaHei", system-ui, sans-serif; background: #0d0f14; color: #e5e7eb; line-height: 1.8; }
+  nav { display: flex; gap: 18px; align-items: center; padding: 12px 20px; background: #161a22; border-bottom: 1px solid #262b36; }
+  nav a { color: #9ca3af; text-decoration: none; font-size: 14px; }
+  nav a:hover { color: #fff; }
+  nav .brand { color: #fff; font-weight: 700; }
+  .container { max-width: 860px; margin: 0 auto; padding: 24px 20px 60px; }
+  .card { background: #161a22; border: 1px solid #262b36; border-radius: 12px; padding: 16px 20px; margin-bottom: 14px; }
+  .card a { color: #93c5fd; text-decoration: none; }
+  .card a:hover { text-decoration: underline; }
+  article h1 { font-size: 26px; border-bottom: 1px solid #262b36; padding-bottom: 12px; }
+  article h2 { font-size: 20px; margin-top: 30px; }
+  article h3 { font-size: 17px; }
+  article code { background: #1c2330; padding: 2px 6px; border-radius: 6px; font-size: 14px; }
+  article pre { background: #12161f; border: 1px solid #2c3345; border-radius: 10px; padding: 14px; overflow: auto; }
+  article pre code { background: none; padding: 0; }
+  article blockquote { border-left: 3px solid #3d5a8a; margin: 12px 0; padding: 4px 14px; color: #9ca3af; background: #12161f; border-radius: 0 8px 8px 0; }
+  article table { border-collapse: collapse; width: 100%; }
+  article th, article td { border: 1px solid #2c3345; padding: 8px 12px; text-align: left; }
+  .back { display: inline-block; margin-bottom: 14px; color: #9ca3af; text-decoration: none; font-size: 14px; }
+  .back:hover { color: #fff; }
+  .muted { color: #6b7280; font-size: 13px; }
+</style>
+</head>
+<body>
+<nav>
+  <a class="brand" href="{{ url_for('index') }}">AI 社团 · 教程</a>
+  <a href="{{ chat_url }}/portal">门户</a>
+  <a href="{{ chat_url }}/">聊天站</a>
+  <a href="{{ chat_url }}/arena">擂台</a>
+</nav>
+<div class="container">
+{% block content %}{% endblock %}
+</div>
+</body>
+</html>

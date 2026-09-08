@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}教程列表 · AI 社团{% endblock %}
+{% block content %}
+<h1>教程目录</h1>
+<p class="muted">两条路线：零基础按顺序读完前 6 篇就能玩转全站；进阶与维护篇给想深入和想接手运维的同学。</p>
+
+<div class="card">
+  <b>零基础路线（按编号顺序读）</b>
+  <p class="muted" style="margin:6px 0 0;">目标：会用聊天站 → 会写提示词 → 会建自己的 Agent → 会搭工作流。</p>
+</div>
+{% for d in docs if d.level == '入门' %}
+<div class="card">
+  <a href="{{ url_for('article', slug=d.slug) }}"><b>{{ d.title }}</b></a>
+  <span class="muted">（{{ d.level }}）</span>
+</div>
+{% endfor %}
+
+<div class="card" style="margin-top:14px;">
+  <b>进阶与维护路线（给老手和下一任维护者）</b>
+  <p class="muted" style="margin:6px 0 0;">目标：吃透提示词与工作流设计 → 能维护站点、交接给下一届。</p>
+</div>
+{% for d in docs if d.level != '入门' %}
+<div class="card">
+  <a href="{{ url_for('article', slug=d.slug) }}"><b>{{ d.title }}</b></a>
+  <span class="muted">（{{ d.level }}）</span>
+</div>
+{% endfor %}
+{% endblock %}

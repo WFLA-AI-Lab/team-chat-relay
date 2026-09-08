@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑流水线' if editing else '新建流水线' }} · Agent 擂台{% endblock %}
+{% block content %}
+<h2>{{ '编辑流水线' if editing else '新建流水线' }}</h2>
+<p class="muted">按顺序添加步骤：每一步可以选一个 Agent 作为「角色」（运行时用该 Agent 最新的设定，你之后改进 Agent，流水线会自动跟上），也可以不选 Agent、自己写指令。运行时，上一步的输出会作为下一步的输入。</p>
+{% if editing and pipeline %}<p class="muted">当前流水线：{{ pipeline['name'] }}（{{ pipeline['description'] }}）</p>{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="post" id="pipelineForm">
+  <label>流水线名称 *</label>
+  <input name="name" required value="{{ pipeline['name'] if editing and pipeline else '' }}" placeholder="例如：文章生成流水线">
+  <label>一句话说明（显示在列表里）</label>
+  <input name="description" value="{{ pipeline['description'] if editing and pipeline else '' }}" placeholder="例如：生成 → 专业评审 → 降 AI 率，一键产出文章">
+
+  <div style="margin:16px 0 8px;">
+    <b>步骤</b>
+    <button type="button" class="btn-ghost" style="margin-left:10px;" onclick="addStep()">+ 添加步骤</button>
+  </div>
+  <div id="steps"></div>
+
+  <div style="margin-top:18px;"><button type="submit">保存流水线</button></div>
+</form>
+
+<script>
+const AGENTS = {{ agents|tojson }};
+const PRESET_STEPS = {{ steps_data|tojson }};
+
+function statusLabel(st) {
+  return st === 'approved' ? '已上架' : st === 'rejected' ? '已拒绝' : '待审核';
+}
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function stepRow(preset, idx) {
+  preset = preset || {};
+  const agentId = preset.agent_id != null ? String(preset.agent_id) : '';
+  const div = document.createElement('div');
+  div.className = 'card';
+  div.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <b>第 ${idx + 1} 步</b>
+      <select class="agent-select" style="width:240px;" onchange="fillStep(this)">
+        <option value="" ${agentId === '' ? 'selected' : ''}>自定义步骤（不选 Agent）</option>
+        ${AGENTS.map(a => `<option value="${a.id}" ${String(a.id) === agentId ? 'selected' : ''} data-name="${encodeURIComponent(a.name)}" data-model="${a.model}" data-system="${encodeURIComponent(a.system)}">${escapeHtml(a.name)}（${statusLabel(a.status)}）</option>`).join('')}
+      </select>
+      <button type="button" class="btn-ghost" onclick="this.parentElement.parentElement.remove(); renumber();">删除</button>
+    </div>
+    <input type="hidden" class="step-agent-id" name="step_agent_id" value="${agentId}">
+    <label>步骤名称 *</label>
+    <input class="step-name" name="step_name" value="${escapeHtml(preset.name || '')}" placeholder="例如：初步生成" required>
+    <label>模型（选中 Agent 后自动填入，可改）</label>
+    <select class="step-model" name="step_model">
+      <option value="deepseek-chat" ${preset.model === 'deepseek-chat' ? 'selected' : ''}>DeepSeek-V3（快）</option>
+      <option value="deepseek-reasoner" ${preset.model === 'deepseek-reasoner' ? 'selected' : ''}>DeepSeek-R1（深推理）</option>
+    </select>
+    <label>系统提示词（角色设定，选中 Agent 后自动填入，可改）</label>
+    <textarea class="step-system" name="step_system" placeholder="这个步骤的 Agent 是什么角色、什么规则">${escapeHtml(preset.system || '')}</textarea>
+    <label>任务指令（告诉它怎么处理上一步的内容）*</label>
+    <textarea class="step-instruction" name="step_instruction" placeholder="例如：根据下面的内容生成一篇 800 字文章" required>${escapeHtml(preset.instruction || '')}</textarea>
+    <div class="row">
+      <div><label>温度</label><input type="number" class="step-temperature" name="step_temperature" step="0.1" min="0" max="2" value="${preset.temperature != null && preset.temperature !== '' ? preset.temperature : '0.7'}"></div>
+      <div><label>最大 token</label><input type="number" class="step-max-tokens" name="step_max_tokens" min="1" max="8192" value="${preset.max_tokens != null && preset.max_tokens !== '' ? preset.max_tokens : '2048'}"></div>
+    </div>`;
+  return div;
+}
+
+function fillStep(sel) {
+  const card = sel.closest('.card');
+  const opt = sel.selectedOptions[0];
+  const hidden = card.querySelector('.step-agent-id');
+  if (hidden) hidden.value = (opt && opt.value) ? opt.value : '';
+  if (!opt || !opt.value) return; // 自定义步骤：字段留给用户手填
+  if (opt.dataset.name) card.querySelector('.step-name').value = decodeURIComponent(opt.dataset.name);
+  card.querySelector('.step-model').value = opt.dataset.model || 'deepseek-chat';
+  card.querySelector('.step-system').value = decodeURIComponent(opt.dataset.system || '');
+}
+
+function renumber() {
+  document.querySelectorAll('#steps .card').forEach((card, i) => {
+    card.querySelector('b').textContent = `第 ${i + 1} 步`;
+  });
+}
+
+function addStep(preset) {
+  const container = document.getElementById('steps');
+  container.appendChild(stepRow(preset || null, container.children.length));
+}
+
+if (PRESET_STEPS.length) {
+  PRESET_STEPS.forEach(p => addStep(p));
+} else {
+  addStep(); // 默认给一步
+}
+</script>
+{% endblock %}

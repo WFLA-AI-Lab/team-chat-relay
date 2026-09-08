@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}AI 社团 · Agent 擂台{% endblock %}</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Microsoft YaHei", system-ui, sans-serif; background: #0d0f14; color: #e5e7eb; }
+  nav { display: flex; gap: 18px; align-items: center; padding: 12px 20px; background: #161a22; border-bottom: 1px solid #262b36; flex-wrap: wrap; }
+  nav a { color: #9ca3af; text-decoration: none; font-size: 14px; }
+  nav a:hover { color: #fff; }
+  nav .brand { color: #fff; font-weight: 700; margin-right: 8px; }
+  nav .right { margin-left: auto; display: flex; gap: 14px; align-items: center; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  .card { background: #161a22; border: 1px solid #262b36; border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; background: #24324a; color: #93c5fd; }
+  .tag-学习 { background: #1f3a2d; color: #6ee7a0; }
+  .tag-社团 { background: #3a2a1f; color: #fcd34d; }
+  .tag-其它 { background: #33304a; color: #c4b5fd; }
+  .status { font-size: 12px; padding: 2px 10px; border-radius: 999px; }
+  .status-pending { background: #4a3a1f; color: #fcd34d; }
+  .status-approved { background: #1f3a2d; color: #6ee7a0; }
+  .status-rejected { background: #4a2424; color: #fca5a5; }
+  .stars { color: #fbbf24; font-weight: 700; }
+  .banner { background: linear-gradient(90deg,#2a1f3d,#1f2a3d); border: 1px solid #3d3352; border-radius: 12px; padding: 14px 18px; margin-bottom: 14px; }
+  button, .btn { background: #2563eb; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: 14px; text-decoration: none; display: inline-block; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid #3a4256; color: #cbd5e1; }
+  .btn-danger { background: #dc2626; }
+  input, select, textarea { width: 100%; background: #0d0f14; color: #e5e7eb; border: 1px solid #2c3345; border-radius: 8px; padding: 9px 11px; font-size: 14px; font-family: inherit; }
+  textarea { min-height: 120px; resize: vertical; }
+  label { display: block; font-size: 13px; color: #9ca3af; margin: 12px 0 5px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .error { background: #4a2424; color: #fca5a5; padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; }
+  .success { background: #1f3a2d; color: #6ee7a0; padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; }
+  .muted { color: #6b7280; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #242a36; }
+  th { color: #9ca3af; font-weight: 500; }
+  .preview { white-space: pre-wrap; font-size: 13px; color: #cbd5e1; background: #0d0f14; border-radius: 8px; padding: 10px; max-height: 200px; overflow: auto; }
+  .test-result { white-space: pre-wrap; font-size: 13px; color: #cbd5e1; background: #12161f; border: 1px dashed #2c3345; border-radius: 8px; padding: 10px; margin-top: 8px; max-height: 240px; overflow: auto; }
+  .chat-box { display: flex; flex-direction: column; gap: 10px; }
+  .chat-log { max-height: 300px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+  .msg { max-width: 85%; padding: 8px 12px; border-radius: 10px; white-space: pre-wrap; font-size: 14px; }
+  .msg.user { align-self: flex-end; background: #2563eb; }
+  .msg.bot { align-self: flex-start; background: #232a38; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 50; }
+  .modal.open { display: flex; }
+  .modal .panel { background: #161a22; border: 1px solid #2c3345; border-radius: 14px; padding: 20px; width: min(640px, 92vw); max-height: 86vh; overflow: auto; }
+  .close { float: right; cursor: pointer; color: #9ca3af; font-size: 18px; }
+  .comment { border-top: 1px solid #242a36; padding: 8px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="brand">Agent 擂台</span>
+  <a href="/portal">门户</a>
+  <a href="/">聊天站</a>
+  <a href="https://{{ tutorial_domain }}">教程站</a>
+  <a href="{{ url_for('index') }}">擂台</a>
+  <a href="{{ url_for('pipelines') }}">流水线</a>
+  <a href="{{ url_for('create') }}">创建 Agent</a>
+  <a href="{{ url_for('mine') }}">我的</a>
+  <a href="{{ url_for('guide') }}">新手引导</a>
+  {% if user and user['is_admin'] %}<a href="{{ url_for('admin_page') }}">审核</a>{% endif %}
+  <span class="right">
+    {% if user %}
+      <span class="muted">{{ user['name'] }}{% if user['is_admin'] %}（管理员）{% endif %}</span>
+      <a href="{{ url_for('logout') }}">退出</a>
+    {% else %}
+      <a href="{{ url_for('login') }}">登录</a>
+    {% endif %}
+  </span>
+</nav>
+<div class="container">
+{% block content %}{% endblock %}
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

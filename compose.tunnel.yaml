@@ -1,0 +1,16 @@
+services:
+  open-webui:
+    # Temporary no-domain mode: publish the UI only on the server loopback.
+    # Reach it through: ssh -L 3000:127.0.0.1:3000 <user>@<server>
+    ports:
+      - "127.0.0.1:3000:8080"
+    environment:
+      WEBUI_URL: http://127.0.0.1:3000
+      WEBUI_SESSION_COOKIE_SECURE: "false"
+      WEBUI_AUTH_COOKIE_SECURE: "false"
+      CORS_ALLOW_ORIGIN: http://127.0.0.1:3000
+
+  caddy:
+    # Caddy is enabled only for the normal domain deployment.
+    profiles:
+      - domain

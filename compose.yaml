@@ -1,0 +1,207 @@
+name: team-chat-relay
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openwebui
+      POSTGRES_USER: openwebui
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openwebui -d openwebui"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+
+  open-webui:
+    image: ${OPEN_WEBUI_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      # Loopback only: local admin API used by scripts/sync-agents.py.
+      - "127.0.0.1:8080:8080"
+    environment:
+      TZ: ${TZ}
+      WEBUI_URL: https://${CHAT_DOMAIN}
+      WEBUI_NAME: Organization AI Agents
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+      WEBUI_AUTH: "true"
+      WEBUI_SESSION_COOKIE_SECURE: "true"
+      WEBUI_AUTH_COOKIE_SECURE: "true"
+      CORS_ALLOW_ORIGIN: https://${CHAT_DOMAIN}
+
+      # Create the first admin non-interactively. Existing users are untouched.
+      WEBUI_ADMIN_EMAIL: ${WEBUI_ADMIN_EMAIL}
+      WEBUI_ADMIN_NAME: ${WEBUI_ADMIN_NAME}
+      WEBUI_ADMIN_PASSWORD: ${WEBUI_ADMIN_PASSWORD}
+      ENABLE_SIGNUP: "false"
+      DEFAULT_USER_ROLE: pending
+
+      # Keep member conversations private and disable optional sharing surfaces.
+      ENABLE_ADMIN_CHAT_ACCESS: "false"
+      ENABLE_COMMUNITY_SHARING: "false"
+      ENABLE_DIRECT_CONNECTIONS: "false"
+      ENABLE_OPENAI_API_PASSTHROUGH: "false"
+      # 插件系统用于运行管理员上传的过滤器函数（每日限额 / 模型锁定）。
+      ENABLE_PLUGINS: "true"
+      ENABLE_CHANNELS: "false"
+      ENABLE_WEB_SEARCH: "false"
+      ENABLE_IMAGE_GENERATION: "false"
+      ENABLE_CODE_INTERPRETER: "false"
+      ENABLE_CODE_EXECUTION: "false"
+      SAFE_MODE: "true"
+
+      # All models are visible to every member on the main site. The review
+      # gate lives in the arena app (submit -> admin approve -> on the arena).
+      BYPASS_MODEL_ACCESS_CONTROL: "true"
+      # Let ordinary members create their own models/agents in Workspace.
+      USER_PERMISSIONS_WORKSPACE_MODELS_ACCESS: "true"
+
+      # The only upstream is the DeepSeek official API.
+      ENABLE_OLLAMA_API: "false"
+      ENABLE_OPENAI_API: "true"
+      OPENAI_API_BASE_URL: ${DEEPSEEK_BASE_URL}
+      OPENAI_API_KEY: ${DEEPSEEK_API_KEY}
+      OPENAI_API_CONFIGS: >-
+        {"0":{"enable":true,"model_ids":["deepseek-chat","deepseek-reasoner"],"connection_type":"external","tags":["deepseek"]}}
+      DEFAULT_MODELS: deepseek-chat
+
+      # Small-team performance defaults.
+      DATABASE_URL: postgresql://openwebui:${POSTGRES_PASSWORD}@postgres:5432/openwebui
+      DATABASE_ENABLE_SESSION_SHARING: "true"
+      ENABLE_REALTIME_CHAT_SAVE: "false"
+      ENABLE_AUTOCOMPLETE_GENERATION: "false"
+      ENABLE_FOLLOW_UP_GENERATION: "false"
+      ENABLE_TITLE_GENERATION: "false"
+      ENABLE_TAGS_GENERATION: "false"
+      ENABLE_SEARCH_QUERY_GENERATION: "false"
+      ENABLE_RETRIEVAL_QUERY_GENERATION: "false"
+      CHAT_RESPONSE_STREAM_DELTA_CHUNK_SIZE: "5"
+      THREAD_POOL_SIZE: "200"
+      MODELS_CACHE_TTL: "300"
+      ENABLE_BASE_MODELS_CACHE: "true"
+      AIOHTTP_CLIENT_TIMEOUT: "600"
+      AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST: "15"
+      ENABLE_VERSION_UPDATE_CHECK: "false"
+      DO_NOT_TRACK: "true"
+      ANONYMIZED_TELEMETRY: "false"
+      SCARF_NO_ANALYTICS: "true"
+    volumes:
+      - open_webui_data:/app/backend/data
+    networks:
+      - frontend
+      - backend
+    security_opt:
+      - no-new-privileges:true
+
+  caddy:
+    image: ${CADDY_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      - open-webui
+      - arena
+      - tutorial
+      - portal
+    environment:
+      CHAT_DOMAIN: ${CHAT_DOMAIN}
+      ARENA_DOMAIN: ${ARENA_DOMAIN}
+      TUTORIAL_DOMAIN: ${TUTORIAL_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - frontend
+    security_opt:
+      - no-new-privileges:true
+
+  tutorial:
+    # 教程站：tutorial.wfla-ailab.top，渲染 tutorial/content/*.md。
+    image: python:3.12-slim
+    restart: unless-stopped
+    command: sh -c "pip install --no-cache-dir -q -r /app/requirements.txt && python /app/app.py"
+    environment:
+      TZ: ${TZ}
+      CHAT_DOMAIN: ${CHAT_DOMAIN}
+    volumes:
+      - ./tutorial:/app
+    ports:
+      - "127.0.0.1:8082:8082"
+    networks:
+      - frontend
+    security_opt:
+      - no-new-privileges:true
+
+  arena:
+    # Agent 擂台：成员提交/审核/试聊/收藏/留言（自包含小应用）。
+    image: python:3.12-slim
+    restart: unless-stopped
+    command: sh -c "pip install --no-cache-dir -q -r /app/requirements.txt && python /app/app.py"
+    environment:
+      OPENWEBUI_URL: http://open-webui:8080
+      WEBUI_ADMIN_EMAIL: ${WEBUI_ADMIN_EMAIL}
+      WEBUI_ADMIN_PASSWORD: ${WEBUI_ADMIN_PASSWORD}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL}
+      ARENA_SECRET: ${ARENA_SECRET:-dev-secret-change-me}
+      ARENA_DB: /data/arena.db
+      # 擂台挂在聊天站同域名子路径，复用聊天站登录 cookie（免二次登录）。
+      ARENA_BASE_PATH: /arena
+      # 试聊限流：每人每分钟 / 每天最多消息数（擂台内试聊）。
+      CHAT_RATE_PER_MIN: "10"
+      CHAT_DAILY_LIMIT: "100"
+      # 门户页/教程站域名：导航条与门户页跳转用
+      TUTORIAL_DOMAIN: ${TUTORIAL_DOMAIN}
+    volumes:
+      - ./arena:/app
+      - arena_data:/data
+    ports:
+      - "127.0.0.1:8081:8081"
+    networks:
+      - frontend
+      - backend
+    security_opt:
+      - no-new-privileges:true
+
+  portal:
+    # 门户跳转页：聊天站域名 /portal，三张卡片串联聊天站/擂台/教程站。
+    image: python:3.12-slim
+    restart: unless-stopped
+    command: sh -c "pip install --no-cache-dir -q -r /app/requirements.txt && python /app/app.py"
+    environment:
+      TZ: ${TZ}
+      TUTORIAL_DOMAIN: ${TUTORIAL_DOMAIN}
+    volumes:
+      - ./portal:/app
+    ports:
+      - "127.0.0.1:8083:8083"
+    networks:
+      - frontend
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  frontend: {}
+  backend:
+    internal: true
+
+volumes:
+  postgres_data: {}
+  open_webui_data: {}
+  caddy_data: {}
+  caddy_config: {}
+  arena_data: {}

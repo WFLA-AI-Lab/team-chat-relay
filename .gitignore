@@ -1,0 +1,10 @@
+.env
+runtime/*
+!runtime/.gitkeep
+.ssh/
+*.log
+*.bak
+*.jsonl
+*.db
+.DS_Store
+Thumbs.db

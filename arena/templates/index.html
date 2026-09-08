@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}擂台 · Agent 擂台{% endblock %}
+{% block content %}
+<div class="banner">
+  <div style="font-size:13px;color:#c4b5fd;">本周主题</div>
+  <div style="font-size:16px;margin-top:4px;">{{ theme }}</div>
+</div>
+
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+  <h2 style="margin:0;">擂台</h2>
+  <span style="margin-left:auto;">
+    {% for t in tags %}
+      <a class="btn btn-ghost {% if tag == t %}btn{% endif %}" style="margin-right:6px;"
+         href="{{ url_for('index', tag=t) if t != tag else url_for('index') }}">{{ t }}</a>
+    {% endfor %}
+    <a class="btn btn-ghost" href="{{ url_for('index') }}">全部</a>
+  </span>
+</div>
+
+<div class="grid">
+{% for a in agents %}
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <h3 style="margin:0;font-size:16px;">{{ a['name'] }}</h3>
+      <span class="tag tag-{{ a['tag'] }}">{{ a['tag'] }}</span>
+      <span class="status status-{{ a['status'] }}">{{ {'pending':'待审核','approved':'已上架','rejected':'未通过'}[a['status']] }}</span>
+    </div>
+    <p class="muted" style="margin:8px 0;">作者：{{ a['author_name'] }} · {{ a['created_at'] }}</p>
+    <p style="margin:8px 0;font-size:14px;">{{ a['description'] }}</p>
+    {% set params = a['params']|fromjson %}
+    {% if params.get('example') %}<p class="muted">试试问：{{ params['example'] }}</p>{% endif %}
+    {% if a['test_result'] %}
+      <div class="test-result" id="test-{{ a['id'] }}"><b>自动试跑：</b>{{ a['test_result'] }}</div>
+    {% endif %}
+    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
+      <button class="btn-ghost fav-btn {% if a['id'] in my_favs %}btn{% endif %}" data-id="{{ a['id'] }}">
+        {% if a['id'] in my_favs %}已收藏{% else %}收藏{% endif %}
+      </button>
+      <button class="btn-ghost chat-btn" data-id="{{ a['id'] }}" data-name="{{ a['name'] }}">试聊</button>
+      <button class="btn-ghost" onclick="togglePreview({{ a['id'] }})">预览</button>
+    </div>
+    <div id="preview-{{ a['id'] }}" style="display:none;margin-top:10px;">
+      <div class="preview">{{ a['system'] }}</div>
+      <div style="margin-top:10px;">
+        <b class="muted">留言（{{ comments.get(a['id'], [])|length }}）</b>
+        {% for c in comments.get(a['id'], []) %}
+          <div class="comment">
+            <span class="muted">{{ c['user_name'] }}：</span>{{ c['content'] }}
+            {% if user['id'] == c['user_id'] or user['id'] == a['author_id'] or user['is_admin'] %}
+              <a href="javascript:void(0)" style="color:#f87171;font-size:12px;"
+                 onclick="deleteComment({{ c['id'] }}, this)">删除</a>
+            {% endif %}
+          </div>
+        {% endfor %}
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <input id="comment-input-{{ a['id'] }}" placeholder="给作者提点建议…" maxlength="500">
+          <button class="btn-ghost" onclick="addComment({{ a['id'] }})">发送</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% else %}
+  <p class="muted">还没有 Agent，去 <a href="{{ url_for('create') }}">创建一个</a> 吧！</p>
+{% endfor %}
+</div>
+
+<div class="modal" id="chatModal">
+  <div class="panel">
+    <span class="close" onclick="closeModal()">✕</span>
+    <h3 id="chatTitle" style="margin-top:0;">试聊</h3>
+    <p class="muted">试聊有限流：每分钟 {{ chat_rate }} 条、每天 {{ chat_daily }} 条，别刷屏哦。</p>
+    <div class="chat-box">
+      <div class="chat-log" id="chatLog"></div>
+      <div style="display:flex;gap:8px;">
+        <input id="chatInput" placeholder="输入消息…" onkeydown="if(event.key==='Enter')sendChat()">
+        <button onclick="sendChat()">发送</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let chatAgentId = null;
+let chatHistory = [];
+
+function openChat(id, name) {
+  chatAgentId = id; chatHistory = [];
+  document.getElementById('chatTitle').textContent = '试聊：' + name;
+  document.getElementById('chatLog').innerHTML = '';
+  document.getElementById('chatModal').classList.add('open');
+  document.getElementById('chatInput').focus();
+}
+function togglePreview(id) {
+  const el = document.getElementById('preview-' + id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+function closeModal() { document.getElementById('chatModal').classList.remove('open'); }
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text || chatAgentId === null) return;
+  input.value = '';
+  const log = document.getElementById('chatLog');
+  const push = (cls, content) => {
+    const div = document.createElement('div');
+    div.className = 'msg ' + cls;
+    div.textContent = content;
+    log.appendChild(div); log.scrollTop = log.scrollHeight;
+  };
+  push('user', text);
+  chatHistory.push({role: 'user', content: text});
+  const resp = await fetch('{{ url_for("api_chat") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({agent_id: chatAgentId, history: chatHistory})
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    push('bot', data.reply);
+    chatHistory.push({role: 'assistant', content: data.reply});
+  } else {
+    push('bot', '错误：' + (data.error || '请求失败'));
+  }
+}
+
+document.querySelectorAll('.fav-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const resp = await fetch('{{ url_for("api_favorite") }}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({agent_id: parseInt(btn.dataset.id)})
+    });
+    const data = await resp.json();
+    if (!data.ok) { alert(data.error); return; }
+    btn.textContent = data.action === 'favorited' ? '已收藏' : '收藏';
+    btn.classList.toggle('btn');
+  });
+});
+
+document.querySelectorAll('.chat-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    openChat(parseInt(btn.dataset.id), btn.dataset.name);
+  });
+});
+
+async function addComment(agentId) {
+  const input = document.getElementById('comment-input-' + agentId);
+  const text = input.value.trim();
+  if (!text) return;
+  const resp = await fetch('{{ url_for("api_comment") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({agent_id: agentId, content: text})
+  });
+  const data = await resp.json();
+  if (!data.ok) { alert(data.error); return; }
+  input.value = '';
+  location.reload();
+}
+
+async function deleteComment(commentId, el) {
+  if (!confirm('删除这条留言？')) return;
+  const resp = await fetch('{{ url_for("api_comment_delete") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({comment_id: commentId})
+  });
+  const data = await resp.json();
+  if (data.ok) location.reload(); else alert(data.error || '删除失败');
+}
+</script>
+{% endblock %}

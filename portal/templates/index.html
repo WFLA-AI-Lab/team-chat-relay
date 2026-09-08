@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 社团 · 站点门户</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Microsoft YaHei", system-ui, sans-serif; background: #0d0f14; color: #e5e7eb; line-height: 1.8; }
+  .hero { max-width: 1100px; margin: 0 auto; padding: 52px 20px 6px; text-align: center; }
+  .hero h1 { font-size: 42px; margin: 0 0 10px; color: #fff; letter-spacing: 2px; }
+  .hero p { font-size: 18px; color: #9ca3af; margin: 0; }
+  .grid { max-width: 1100px; margin: 0 auto; padding: 30px 20px 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .card { background: #161a22; border: 2px solid #262b36; border-radius: 14px; padding: 30px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .card .icon { font-size: 36px; line-height: 1; }
+  .card h2 { font-size: 28px; margin: 0; color: #fff; }
+  .card p { font-size: 15px; color: #9ca3af; margin: 0; flex: 1; }
+  .card .go { font-size: 18px; font-weight: 700; color: #fff; text-align: center; text-decoration: none; border-radius: 10px; padding: 14px 18px; display: inline-block; }
+  .card .go:hover { opacity: .88; }
+  /* 三个站点各自的强调色 */
+  .card.chat { border-color: #2563eb; }
+  .card.chat .icon, .card.chat h2 { color: #93c5fd; }
+  .card.chat .go { background: #2563eb; }
+  .card.arena { border-color: #7c3aed; }
+  .card.arena .icon, .card.arena h2 { color: #c4b5fd; }
+  .card.arena .go { background: #7c3aed; }
+  .card.tutorial { border-color: #059669; }
+  .card.tutorial .icon, .card.tutorial h2 { color: #6ee7a0; }
+  .card.tutorial .go { background: #059669; }
+  .banner { max-width: 1100px; margin: 8px auto 52px; padding: 0 20px; }
+  .banner .inner { background: linear-gradient(90deg,#2a1f3d,#1f2a3d); border: 1px solid #3d3352; border-radius: 12px; padding: 14px 18px; font-size: 15px; color: #cbd5e1; }
+  .banner .inner b { color: #fff; font-weight: 700; }
+  .banner.starter { margin: 28px auto 0; }
+  .banner.starter .inner { background: linear-gradient(90deg,#1f2f26,#1f2a3d); border-color: #2f5245; }
+  .banner.starter a { color: #6ee7a0; font-weight: 700; text-decoration: none; }
+  .banner.starter a:hover { text-decoration: underline; }
+  @media (max-width: 820px) {
+    .hero { padding: 32px 16px 4px; }
+    .hero h1 { font-size: 30px; }
+    .grid { grid-template-columns: 1fr; padding: 20px 16px 8px; }
+    .card { padding: 22px 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="hero">
+  <h1>AI 社团 · 站点门户</h1>
+  <p>三个站点，一个入口 · <a href="https://wfla-ailab.top" style="color:#93c5fd;">招新官网 ↗</a></p>
+</div>
+<div class="banner starter">
+  <div class="inner"><b>新社员从这里开始：</b>先读<a href="{{ tutorial_url }}">教程站第一课</a>搞懂 Agent 是什么 → 到<a href="/">聊天站</a>和「通用助手」聊满 5 句 → 去<a href="/arena">擂台</a>用「从模板开始」创建你的第一个 Agent。遇到任何问题，问聊天站侧边栏里的「聊天站管家」。</div>
+</div>
+<div class="grid">
+  <div class="card chat">
+    <div class="icon">◆</div>
+    <h2>聊天站</h2>
+    <p>用 Agent 聊天（通用助手、深度思考、代码助手、招新问答、三位站点管家）</p>
+    <a class="go" href="/">进入聊天站</a>
+  </div>
+  <div class="card arena">
+    <div class="icon">▲</div>
+    <h2>Agent 擂台</h2>
+    <p>创建自己的 Agent、把 Agent 串成工作流、试聊/收藏/留言</p>
+    <a class="go" href="/arena">进入擂台</a>
+  </div>
+  <div class="card tutorial">
+    <div class="icon">●</div>
+    <h2>教程站</h2>
+    <p>AI 学习教程：Agent 入门、提示词技巧、DeepSeek 与预算、工作流</p>
+    <a class="go" href="{{ tutorial_url }}">进入教程站</a>
+  </div>
+</div>
+<div class="banner">
+  <div class="inner"><b>每个页面都有专属管家：</b>在聊天站侧边栏找「聊天站管家」问站点问题、找「擂台管家」问擂台玩法、找「教程写作」写教程文章。</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}审核 · Agent 擂台{% endblock %}
+{% block content %}
+<h2>管理员审核</h2>
+<p class="muted">通过后 Agent 上架擂台（所有人可见可试聊）。如需让它在主站聊天站的模型选择器里出现，请在 <b>聊天站 Admin Panel → Models</b> 里把对应模型设为 Everyone。</p>
+
+<div class="card">
+  <label>本周主题（覆盖自动轮换，留空恢复自动）</label>
+  <div style="display:flex;gap:8px;">
+    <input id="theme-input" value="{{ theme }}" maxlength="60" placeholder="例如：学习：做一个帮你学某一科的 Agent">
+    <button onclick="setTheme()">保存主题</button>
+  </div>
+</div>
+
+{% for a in agents %}
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <h3 style="margin:0;font-size:16px;">{{ a['name'] }}</h3>
+      <span class="tag tag-{{ a['tag'] }}">{{ a['tag'] }}</span>
+      <span class="status status-{{ a['status'] }}">{{ {'pending':'待审核','approved':'已上架','rejected':'未通过'}[a['status']] }}</span>
+    </div>
+    <p class="muted" style="margin:8px 0;">作者：{{ a['author_name'] }} · {{ a['created_at'] }} · 模型：{{ a['model'] }}</p>
+    <p style="margin:8px 0;font-size:14px;">{{ a['description'] }}</p>
+    <div class="preview">{{ a['system'] }}</div>
+    <div class="test-result" id="test-{{ a['id'] }}">
+      <b>自动试跑：</b>{{ a['test_result'] or '（无试跑记录）' }}
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button onclick="setStatus({{ a['id'] }}, 'approved')">通过</button>
+      <button class="btn-ghost" onclick="setStatus({{ a['id'] }}, 'rejected')">拒绝</button>
+      <button class="btn-ghost" onclick="setStatus({{ a['id'] }}, 'pending')">撤回待审核</button>
+      <button class="btn-ghost" onclick="retest({{ a['id'] }})">重新试跑</button>
+    </div>
+  </div>
+{% else %}
+  <p class="muted">没有待审核的 Agent。</p>
+{% endfor %}
+<script>
+async function setStatus(id, status) {
+  const resp = await fetch('{{ url_for("api_set_status") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({agent_id: id, status: status})
+  });
+  const data = await resp.json();
+  if (data.ok) location.reload();
+  else alert(data.error || '操作失败');
+}
+async function retest(id) {
+  const resp = await fetch('{{ url_for("api_retest") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({agent_id: id})
+  });
+  const data = await resp.json();
+  if (!data.ok) { alert(data.error || '试跑失败'); return; }
+  const el = document.getElementById('test-' + id);
+  el.textContent = '自动试跑：' + data.result;
+}
+async function setTheme() {
+  const value = document.getElementById('theme-input').value.trim();
+  const resp = await fetch('{{ url_for("api_set_theme") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({theme: value})
+  });
+  const data = await resp.json();
+  if (data.ok) alert('主题已更新：' + data.theme);
+  else alert(data.error || '保存失败');
+}
+</script>
+{% endblock %}

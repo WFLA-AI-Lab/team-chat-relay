@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}流水线 · Agent 擂台{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+  <h2 style="margin:0;">流水线（Agent 流）</h2>
+  <span class="muted">把多个 Agent 按顺序串成一条处理流程：输入内容 → 第 1 步 → 第 2 步 → … → 最终输出。可共享给全社团使用。</span>
+  <a class="btn" style="margin-left:auto;" href="{{ url_for('pipeline_new') }}">新建流水线</a>
+</div>
+
+<h3>我创建的</h3>
+<div class="grid">
+{% for p in mine %}
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <h3 style="margin:0;font-size:16px;">{{ p['name'] }}</h3>
+      {% if p['is_shared'] %}<span class="status status-approved">已共享</span>{% else %}<span class="status status-pending">未共享</span>{% endif %}
+    </div>
+    <p class="muted" style="margin:8px 0;">{{ p['step_count'] }} 个步骤 · {{ p['updated_at'] }}</p>
+    <p style="margin:8px 0;font-size:14px;">{{ p['description'] }}</p>
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+      <a class="btn" href="{{ url_for('pipeline_detail', pipeline_id=p['id']) }}">运行 / 查看</a>
+      <a class="btn-ghost" href="{{ url_for('pipeline_edit', pipeline_id=p['id']) }}">编辑</a>
+      <button class="btn-ghost" onclick="toggleShare({{ p['id'] }}, {{ 0 if p['is_shared'] else 1 }})">
+        {{ '取消共享' if p['is_shared'] else '共享给全社团' }}
+      </button>
+    </div>
+  </div>
+{% else %}
+  <p class="muted">你还没创建过流水线，<a href="{{ url_for('pipeline_new') }}">去创建一个</a>！</p>
+{% endfor %}
+</div>
+
+<h3 style="margin-top:26px;">社团共享的</h3>
+<div class="grid">
+{% for p in shared %}
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <h3 style="margin:0;font-size:16px;">{{ p['name'] }}</h3>
+      <span class="muted">by {{ p['author_name'] }}</span>
+    </div>
+    <p class="muted" style="margin:8px 0;">{{ p['step_count'] }} 个步骤</p>
+    <p style="margin:8px 0;font-size:14px;">{{ p['description'] }}</p>
+    <div style="margin-top:10px;">
+      <a class="btn" href="{{ url_for('pipeline_detail', pipeline_id=p['id']) }}">运行</a>
+    </div>
+  </div>
+{% else %}
+  <p class="muted">还没有人共享流水线。</p>
+{% endfor %}
+</div>
+
+<script>
+async function toggleShare(id, shared) {
+  const resp = await fetch('{{ url_for("api_pipeline_share") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({pipeline_id: id, shared: shared === 1})
+  });
+  const data = await resp.json();
+  if (data.ok) location.reload();
+  else alert(data.error || '操作失败');
+}
+</script>
+{% endblock %}

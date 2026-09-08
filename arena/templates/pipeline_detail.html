@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}{{ pipeline['name'] }} · 流水线{% endblock %}
+{% block content %}
+<style>
+  .flow-node { display:inline-block; padding:4px 12px; border-radius:8px; background:#1f2a3d; border:1px solid #3d3352; font-size:13px; white-space:nowrap; }
+  .flow-node.start { background:#1f3a2d; border-color:#2a5a3d; }
+  .flow-node.end { background:#24324a; border-color:#3a5a7a; }
+  .flow-arrow { color:#6b7280; font-size:14px; }
+  .agent-badge { display:inline-block; margin-left:8px; padding:2px 10px; border-radius:999px; font-size:12px; background:#24324a; color:#93c5fd; }
+</style>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+  <a class="muted" href="{{ url_for('pipelines') }}">← 返回流水线</a>
+</div>
+<h2>{{ pipeline['name'] }}</h2>
+<p class="muted">作者：{{ author_name }}{% if pipeline['is_shared'] %} · 已共享{% endif %} · 创建于 {{ pipeline['created_at'] }}</p>
+<p>{{ pipeline['description'] }}</p>
+
+{% if is_owner %}
+<div class="card" style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+  <a class="btn" href="{{ url_for('pipeline_edit', pipeline_id=pipeline['id']) }}">编辑流水线</a>
+  <span class="muted">可修改名称、说明和各步骤（包括重新选择 Agent）</span>
+</div>
+{% endif %}
+
+<h3 style="margin-top:18px;">数据流</h3>
+<div class="card" style="overflow-x:auto;">
+  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+    <span class="flow-node start">原始输入</span>
+    {% for s in steps %}
+      <span class="flow-arrow">→</span>
+      <span class="flow-node" title="{{ s['name'] }}">第{{ loop.index }}步「{{ s['agent_name'] if s['agent_name'] else s['name'] }}」</span>
+    {% endfor %}
+    <span class="flow-arrow">→</span>
+    <span class="flow-node end">最终输出</span>
+  </div>
+</div>
+
+<h3 style="margin-top:18px;">步骤（按顺序执行）</h3>
+<div class="grid">
+{% for s in steps %}
+  {% set disp_name = s['agent_name'] if s['agent_name'] else s['name'] %}
+  {% set disp_model = s['agent_model'] if s['agent_model'] else s['model'] %}
+  {% set disp_system = s['agent_system'] if s['agent_name'] else s['system'] %}
+  <div class="card">
+    <b>第 {{ loop.index }} 步：{{ disp_name }}</b>
+    {% if s['agent_id'] and s['agent_name'] %}
+      <span class="agent-badge">引用 Agent：{{ s['agent_name'] }}（{{ '待审核' if s['agent_status']=='pending' else '已上架' if s['agent_status']=='approved' else '已拒绝' }}）</span>
+    {% endif %}
+    <p class="muted" style="margin:6px 0;">模型：{{ disp_model }}</p>
+    <p style="margin:6px 0;font-size:13px;"><b>指令：</b>{{ s['instruction'] }}</p>
+    <div class="preview" style="max-height:120px;">{{ disp_system }}</div>
+  </div>
+{% endfor %}
+</div>
+
+<div class="card" style="margin-top:18px;">
+  <label>输入内容 *（将依次经过以上所有步骤）</label>
+  <textarea id="inputText" placeholder="粘贴要处理的内容…" style="min-height:120px;"></textarea>
+  <div style="margin-top:10px;">
+    <button onclick="runPipeline()">运行流水线</button>
+    <span class="muted" id="runMsg"></span>
+  </div>
+</div>
+
+<div id="result"></div>
+
+<h3 style="margin-top:26px;">最近的运行记录</h3>
+{% for r in runs %}
+  <div class="card">
+    <p class="muted" style="margin:0 0 8px;">{{ r['created_at'] }} · 输入：{{ r['input'][:60] }}{% if r['input']|length > 60 %}…{% endif %}</p>
+    {% for st in r['stages'] %}
+      <div style="margin-top:10px;">
+        <b>第 {{ loop.index }} 步「{{ st['step'] }}」：</b>
+        {% if st.get('input') %}
+        <details style="margin-top:6px;">
+          <summary style="cursor:pointer;font-size:13px;color:#9ca3af;">输入（{{ '前 200 字，点击展开' if st['input']|length > 200 else '完整' }}）：{{ st['input'][:200] + '…' if st['input']|length > 200 else st['input'] }}</summary>
+          <pre class="preview" style="max-height:300px;margin-top:6px;">{{ st['input'] }}</pre>
+        </details>
+        {% endif %}
+        <div class="test-result" style="max-height:200px;margin-top:6px;">{{ st['output'] }}</div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="muted">还没有运行记录。</p>
+{% endfor %}
+
+<script>
+async function runPipeline() {
+  const input = document.getElementById('inputText').value.trim();
+  if (!input) { alert('请输入内容'); return; }
+  const msg = document.getElementById('runMsg');
+  msg.textContent = '运行中（每一步都要调一次 AI，可能需要十几秒）…';
+  const resp = await fetch('{{ url_for("api_pipeline_run") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({pipeline_id: {{ pipeline['id'] }}, input: input})
+  });
+  const data = await resp.json();
+  if (!data.ok) {
+    msg.textContent = '';
+    alert(data.error || '运行失败');
+    return;
+  }
+  msg.textContent = '';
+  const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const result = document.getElementById('result');
+  let html = '<h3>运行结果</h3>';
+  data.stages.forEach((st, i) => {
+    let block = `<div class="card"><b>第 ${i + 1} 步「${esc(st.step)}」</b>`;
+    if (st.input) {
+      const brief = st.input.length > 200 ? st.input.slice(0, 200) + '…' : st.input;
+      block += `<details style="margin-top:6px;"><summary style="cursor:pointer;font-size:13px;color:#9ca3af;">输入（${st.input.length > 200 ? '前 200 字，点击展开' : '完整'}）：${esc(brief)}</summary><pre class="preview" style="max-height:300px;margin-top:6px;">${esc(st.input)}</pre></details>`;
+    }
+    block += `<div class="test-result" style="max-height:300px;margin-top:6px;">${esc(st.output)}</div></div>`;
+    html += block;
+  });
+  result.innerHTML = html;
+  location.reload(); // 刷新以展示最新运行记录
+}
+</script>
+{% endblock %}
