@@ -10,7 +10,8 @@
 	}
 
 	# 门户跳转页：/portal，三张卡片串联聊天站/擂台/教程站。
-	handle /portal* {
+	# handle_path 会剥掉 /portal 前缀再转发（portal 应用自己挂在 / 路由上）。
+	handle_path /portal* {
 		reverse_proxy portal:8083
 	}
 
