@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}作品廊 · Agent 擂台{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+  <h2 style="margin:0;">GitHub 作品廊</h2>
+  <span class="muted">成员提交自己的 GitHub 仓库，管理员审核通过后上架展示，社团网站作品墙会从这里拉取数据。</span>
+  <a class="btn" style="margin-left:auto;" href="{{ url_for('project_submit') }}">提交作品</a>
+</div>
+
+<h3>已上架作品</h3>
+<div class="grid">
+{% for p in approved %}
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <h3 style="margin:0;font-size:16px;">{{ p['display_name'] }}</h3>
+      <span class="tag tag-{{ p['tag'] }}">{{ p['tag'] }}</span>
+      <span class="status status-approved">已上架</span>
+    </div>
+    <p class="muted" style="margin:8px 0;">by {{ p['author_name'] or '未知成员' }} · {{ p['created_at'] }}</p>
+    <p style="margin:8px 0;font-size:14px;">{{ p['description'] }}</p>
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+      <a class="btn" href="https://github.com/{{ p['github_owner'] }}/{{ p['github_repo'] }}" target="_blank" rel="noopener">查看仓库 ↗</a>
+      {% if p['demo_url'] %}<a class="btn btn-ghost" href="{{ p['demo_url'] }}" target="_blank" rel="noopener">在线演示 ↗</a>{% endif %}
+    </div>
+  </div>
+{% else %}
+  <p class="muted">还没有已上架的作品，<a href="{{ url_for('project_submit') }}">提交第一个</a>！</p>
+{% endfor %}
+</div>
+
+{% if user and user['is_admin'] %}
+<h3 style="margin-top:26px;">待审核（管理员）</h3>
+<div class="grid">
+{% for p in pending %}
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <h3 style="margin:0;font-size:16px;">{{ p['display_name'] }}</h3>
+      <span class="tag tag-{{ p['tag'] }}">{{ p['tag'] }}</span>
+      <span class="status status-pending">待审核</span>
+    </div>
+    <p class="muted" style="margin:8px 0;">by {{ p['author_name'] or '未知成员' }} · {{ p['created_at'] }}</p>
+    <p style="margin:8px 0;font-size:14px;">{{ p['description'] }}</p>
+    <p class="muted" style="margin:8px 0;">仓库：{{ p['repo_url'] }}</p>
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;">
+      <a class="btn btn-ghost" href="https://github.com/{{ p['github_owner'] }}/{{ p['github_repo'] }}" target="_blank" rel="noopener">查看仓库 ↗</a>
+      <form method="post" action="{{ url_for('project_set_status', project_id=p['id'], set='approved') }}" style="margin:0;">
+        <button type="submit">通过</button>
+      </form>
+      <form method="post" action="{{ url_for('project_set_status', project_id=p['id'], set='rejected') }}" style="margin:0;">
+        <button type="submit" class="btn-danger">拒绝</button>
+      </form>
+    </div>
+  </div>
+{% else %}
+  <p class="muted">没有待审核的作品。</p>
+{% endfor %}
+</div>
+{% endif %}
+
+<h3 style="margin-top:26px;">我提交的</h3>
+<div class="grid">
+{% for p in mine_rows %}
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <h3 style="margin:0;font-size:16px;">{{ p['display_name'] }}</h3>
+      <span class="tag tag-{{ p['tag'] }}">{{ p['tag'] }}</span>
+      <span class="status status-{{ p['status'] }}">{{ {'pending':'待审核','approved':'已上架','rejected':'未通过'}[p['status']] }}</span>
+    </div>
+    <p class="muted" style="margin:8px 0;">{{ p['created_at'] }}</p>
+    <p style="margin:8px 0;font-size:14px;">{{ p['description'] }}</p>
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;">
+      <a class="btn btn-ghost" href="{{ p['repo_url'] }}" target="_blank" rel="noopener">查看仓库 ↗</a>
+      {% if user and user['is_admin'] and p['status'] == 'pending' %}
+      <form method="post" action="{{ url_for('project_set_status', project_id=p['id'], set='approved') }}" style="margin:0;">
+        <button type="submit">通过</button>
+      </form>
+      <form method="post" action="{{ url_for('project_set_status', project_id=p['id'], set='rejected') }}" style="margin:0;">
+        <button type="submit" class="btn-danger">拒绝</button>
+      </form>
+      {% endif %}
+    </div>
+    {% if p['status'] == 'rejected' %}
+    <p class="muted" style="margin:8px 0;">该作品未通过审核，可完善仓库或简介后重新提交。</p>
+    {% endif %}
+  </div>
+{% else %}
+  <p class="muted">你还没提交过作品，<a href="{{ url_for('project_submit') }}">去提交一个</a>！</p>
+{% endfor %}
+</div>
+{% endblock %}

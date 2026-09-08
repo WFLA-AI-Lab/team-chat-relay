@@ -9,6 +9,7 @@
   预览、直接试聊；试聊有限流（每分钟条数 + 每日总条数），防滥用。
 - 每周每人 3 颗星（不能投自己、可撤销）；有「本周擂主」和用户周榜/总榜。
 - 每周主题轮换（12 个主题循环），管理员可在审核页覆盖。
+- GitHub 作品廊：成员提交仓库作品，管理员审核后经公开 API 供社团网站展示。
 
 依赖：flask。环境变量见 compose.yaml 的 arena 服务。
 """
@@ -245,6 +246,18 @@ def db():
             user_id INTEGER NOT NULL,
             input TEXT NOT NULL,
             stages TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT);
+        CREATE TABLE IF NOT EXISTS projects(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            repo_url TEXT,
+            demo_url TEXT DEFAULT '',
+            display_name TEXT,
+            description TEXT DEFAULT '',
+            tag TEXT DEFAULT '其它',
+            github_owner TEXT,
+            github_repo TEXT,
+            status TEXT DEFAULT 'pending',
             created_at TEXT);
         """
     )
@@ -979,6 +992,148 @@ def api_pipeline_run():
                json.dumps(stages, ensure_ascii=False), now()))
     d.commit()
     return jsonify({"ok": True, "stages": stages})
+
+
+# --------------------------------------------------------------------------
+# GitHub 作品廊：成员提交仓库 → 管理员审核 → 公开 API 供社团网站作品墙拉取
+# --------------------------------------------------------------------------
+GITHUB_REPO_RE = re.compile(r"github\.com/([^/]+)/([^/]+)")
+
+
+def parse_github_repo(url):
+    """从 GitHub 仓库地址提取 (owner, repo)；解析失败返回 (None, None)。
+
+    兼容 .git 后缀、末尾斜杠以及深层路径（如 /tree/main）。
+    """
+    m = GITHUB_REPO_RE.search((url or "").strip())
+    if not m:
+        return None, None
+    owner = m.group(1).strip().strip("/")
+    repo = re.sub(r"\.git/?$", "", m.group(2).strip()).strip("/")
+    if not owner or not repo:
+        return None, None
+    return owner, repo
+
+
+@app.route("/projects")
+def projects():
+    """作品廊列表页：所有人可见已上架作品，另附自己的提交与（管理员）待审核列表。"""
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+    d = db()
+    approved = d.execute(
+        "SELECT p.*, u.name AS author_name FROM projects p "
+        "LEFT JOIN users u ON u.id = p.user_id "
+        "WHERE p.status='approved' ORDER BY p.created_at DESC"
+    ).fetchall()
+    mine_rows = d.execute(
+        "SELECT p.*, u.name AS author_name FROM projects p "
+        "LEFT JOIN users u ON u.id = p.user_id "
+        "WHERE p.user_id=? ORDER BY p.created_at DESC",
+        (user["id"],),
+    ).fetchall()
+    pending = []
+    if user["is_admin"]:
+        pending = d.execute(
+            "SELECT p.*, u.name AS author_name FROM projects p "
+            "LEFT JOIN users u ON u.id = p.user_id "
+            "WHERE p.status='pending' ORDER BY p.created_at DESC"
+        ).fetchall()
+    return render_template(
+        "projects.html", user=user, approved=approved,
+        mine_rows=mine_rows, pending=pending, tags=TAGS,
+    )
+
+
+@app.route("/projects/submit", methods=["GET", "POST"])
+def project_submit():
+    """提交 GitHub 作品：GET 渲染表单，POST 校验后入库（status=pending）。"""
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+    form = dict(request.form) if request.method == "POST" else {}
+    if request.method == "POST":
+        repo_url = request.form.get("repo_url", "").strip()
+        demo_url = request.form.get("demo_url", "").strip()
+        display_name = request.form.get("display_name", "").strip()
+        description = request.form.get("description", "").strip()
+        tag = request.form.get("tag", "其它")
+        if tag not in TAGS:
+            tag = "其它"
+        if not repo_url:
+            return render_template(
+                "project_submit.html", user=user, form=form, tags=TAGS,
+                error="GitHub 仓库地址不能为空",
+            )
+        owner, repo = parse_github_repo(repo_url)
+        if not owner or not repo:
+            return render_template(
+                "project_submit.html", user=user, form=form, tags=TAGS,
+                error="仓库地址格式不对，请填形如 https://github.com/用户名/仓库名 的地址",
+            )
+        if not display_name:
+            display_name = repo  # 名称留空时默认取仓库名
+        d = db()
+        d.execute(
+            "INSERT INTO projects(user_id, repo_url, demo_url, display_name, description, "
+            "tag, github_owner, github_repo, status, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+            (user["id"], repo_url, demo_url, display_name, description, tag,
+             owner, repo, "pending", now()),
+        )
+        d.commit()
+        return redirect(url_for("projects"))
+    return render_template("project_submit.html", user=user, form=form, tags=TAGS)
+
+
+@app.route("/projects/<int:project_id>/status", methods=["POST"])
+def project_set_status(project_id):
+    """管理员审核：POST /projects/<id>/status?set=approved|rejected（表单提交后跳回列表页）。"""
+    user = current_user()
+    if not user or not user["is_admin"]:
+        return redirect(url_for("projects"))
+    new_status = request.args.get("set", "")
+    if new_status not in ("approved", "rejected"):
+        return redirect(url_for("projects"))
+    d = db()
+    row = d.execute("SELECT id FROM projects WHERE id=?", (project_id,)).fetchone()
+    if not row:
+        return redirect(url_for("projects"))
+    d.execute("UPDATE projects SET status=? WHERE id=?", (new_status, project_id))
+    d.commit()
+    return redirect(url_for("projects"))
+
+
+@app.route("/api/projects.json")
+def api_projects_json():
+    """公开 API：返回已上架作品的 JSON 数组，供社团网站作品墙跨域拉取。
+
+    服务端不调 GitHub API，前端用 owner/repo 自行拉取实时数据；
+    响应带 Cache-Control 与 Access-Control-Allow-Origin，便于静态站跨域缓存。
+    """
+    rows = db().execute(
+        "SELECT * FROM projects WHERE status='approved' ORDER BY created_at DESC"
+    ).fetchall()
+    generated_at = now()
+    items = []
+    for r in rows:
+        owner = r["github_owner"] or ""
+        repo = r["github_repo"] or ""
+        items.append({
+            "display_name": r["display_name"],
+            "description": r["description"] or "",
+            "tag": r["tag"] or "其它",
+            "github_owner": owner,
+            "github_repo": repo,
+            "html_url": f"https://github.com/{owner}/{repo}",
+            "demo_url": r["demo_url"] or "",
+            "avatar_url": f"https://github.com/{owner}.png?size=80",
+            "updated_at": generated_at,
+        })
+    resp = jsonify(items)
+    resp.headers["Cache-Control"] = "public, max-age=300"
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
 
 
 @app.route("/admin")

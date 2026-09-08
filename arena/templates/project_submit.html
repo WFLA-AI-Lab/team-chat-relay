@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}提交作品 · Agent 擂台{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+  <h2 style="margin:0;">提交 GitHub 作品</h2>
+  <a class="btn btn-ghost" style="margin-left:auto;" href="{{ url_for('projects') }}">返回作品廊</a>
+</div>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<div class="card" style="max-width:640px;">
+  <form method="post">
+    <label for="repo_url">GitHub 仓库地址（必填）</label>
+    <input id="repo_url" name="repo_url" value="{{ form.get('repo_url', '') }}" placeholder="https://github.com/用户名/仓库名">
+    <p class="muted" style="margin:6px 0 0;">请填公开仓库地址，例如 https://github.com/yourname/your-repo</p>
+
+    <label for="display_name">作品名称（选填，默认取仓库名）</label>
+    <input id="display_name" name="display_name" value="{{ form.get('display_name', '') }}" placeholder="给作品起个名字">
+
+    <label for="demo_url">在线演示地址（选填）</label>
+    <input id="demo_url" name="demo_url" value="{{ form.get('demo_url', '') }}" placeholder="https://...">
+
+    <label for="description">作品简介（选填）</label>
+    <textarea id="description" name="description" placeholder="这个作品做了什么、用了什么技术、亮点是什么">{{ form.get('description', '') }}</textarea>
+
+    <label for="tag">分类</label>
+    <select id="tag" name="tag">
+      {% for t in tags %}
+      <option value="{{ t }}" {% if form.get('tag', '其它') == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+
+    <div style="margin-top:16px;">
+      <button type="submit">提交审核</button>
+      <a class="btn btn-ghost" href="{{ url_for('projects') }}">取消</a>
+    </div>
+  </form>
+</div>
+<p class="muted" style="margin-top:12px;">提交后进入待审核状态，管理员通过后会在作品廊与社团网站展示。仓库需公开可见，演示地址可留空。</p>
+{% endblock %}
