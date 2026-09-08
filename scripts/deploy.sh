@@ -20,6 +20,12 @@ if grep -q '^WEBUI_ADMIN_EMAIL=admin@example\.org$' .env; then
   exit 1
 fi
 
+# 防呆：管理员邮箱必须是合法格式（曾误填缺 .com 的地址导致管理员登录失败）
+if ! grep -E '^WEBUI_ADMIN_EMAIL=[^@]+@[^@]+\.[^@]+$' .env >/dev/null; then
+  echo "WEBUI_ADMIN_EMAIL does not look like a valid email (missing domain?). Fix .env." >&2
+  exit 1
+fi
+
 if grep -q '^DEEPSEEK_API_KEY=__DEEPSEEK_API_KEY__$' .env; then
   echo "Paste your DeepSeek API key into DEEPSEEK_API_KEY in .env first." >&2
   exit 1

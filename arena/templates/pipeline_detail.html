@@ -2,11 +2,11 @@
 {% block title %}{{ pipeline['name'] }} · 流水线{% endblock %}
 {% block content %}
 <style>
-  .flow-node { display:inline-block; padding:4px 12px; border-radius:8px; background:#1f2a3d; border:1px solid #3d3352; font-size:13px; white-space:nowrap; }
-  .flow-node.start { background:#1f3a2d; border-color:#2a5a3d; }
-  .flow-node.end { background:#24324a; border-color:#3a5a7a; }
-  .flow-arrow { color:#6b7280; font-size:14px; }
-  .agent-badge { display:inline-block; margin-left:8px; padding:2px 10px; border-radius:999px; font-size:12px; background:#24324a; color:#93c5fd; }
+  .flow-node { display:inline-block; padding:4px 12px; border-radius:8px; background:#f2f6fc; border:1px solid #c7d4e8; font-size:13px; white-space:nowrap; }
+  .flow-node.start { background:#e7f5ec; border-color:#a8d5b5; }
+  .flow-node.end { background:#e7eef9; border-color:#aac4e6; }
+  .flow-arrow { color:#5a6a80; font-size:14px; }
+  .agent-badge { display:inline-block; margin-left:8px; padding:2px 10px; border-radius:999px; font-size:12px; background:#e7eef9; color:#2a4a7a; }
 </style>
 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
   <a class="muted" href="{{ url_for('pipelines') }}">← 返回流水线</a>
@@ -73,7 +73,7 @@
         <b>第 {{ loop.index }} 步「{{ st['step'] }}」：</b>
         {% if st.get('input') %}
         <details style="margin-top:6px;">
-          <summary style="cursor:pointer;font-size:13px;color:#9ca3af;">输入（{{ '前 200 字，点击展开' if st['input']|length > 200 else '完整' }}）：{{ st['input'][:200] + '…' if st['input']|length > 200 else st['input'] }}</summary>
+          <summary style="cursor:pointer;font-size:13px;color:#5a6a80;">输入（{{ '前 200 字，点击展开' if st['input']|length > 200 else '完整' }}）：{{ st['input'][:200] + '…' if st['input']|length > 200 else st['input'] }}</summary>
           <pre class="preview" style="max-height:300px;margin-top:6px;">{{ st['input'] }}</pre>
         </details>
         {% endif %}
@@ -110,7 +110,7 @@ async function runPipeline() {
     let block = `<div class="card"><b>第 ${i + 1} 步「${esc(st.step)}」</b>`;
     if (st.input) {
       const brief = st.input.length > 200 ? st.input.slice(0, 200) + '…' : st.input;
-      block += `<details style="margin-top:6px;"><summary style="cursor:pointer;font-size:13px;color:#9ca3af;">输入（${st.input.length > 200 ? '前 200 字，点击展开' : '完整'}）：${esc(brief)}</summary><pre class="preview" style="max-height:300px;margin-top:6px;">${esc(st.input)}</pre></details>`;
+      block += `<details style="margin-top:6px;"><summary style="cursor:pointer;font-size:13px;color:#5a6a80;">输入（${st.input.length > 200 ? '前 200 字，点击展开' : '完整'}）：${esc(brief)}</summary><pre class="preview" style="max-height:300px;margin-top:6px;">${esc(st.input)}</pre></details>`;
     }
     block += `<div class="test-result" style="max-height:300px;margin-top:6px;">${esc(st.output)}</div></div>`;
     html += block;

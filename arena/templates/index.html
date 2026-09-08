@@ -2,7 +2,7 @@
 {% block title %}擂台 · Agent 擂台{% endblock %}
 {% block content %}
 <div class="banner">
-  <div style="font-size:13px;color:#c4b5fd;">本周主题</div>
+  <div style="font-size:13px;color:#5b3fae;">本周主题</div>
   <div style="font-size:16px;margin-top:4px;">{{ theme }}</div>
 </div>
 
@@ -47,7 +47,7 @@
           <div class="comment">
             <span class="muted">{{ c['user_name'] }}：</span>{{ c['content'] }}
             {% if user['id'] == c['user_id'] or user['id'] == a['author_id'] or user['is_admin'] %}
-              <a href="javascript:void(0)" style="color:#f87171;font-size:12px;"
+              <a href="javascript:void(0)" style="color:#b42323;font-size:12px;"
                  onclick="deleteComment({{ c['id'] }}, this)">删除</a>
             {% endif %}
           </div>

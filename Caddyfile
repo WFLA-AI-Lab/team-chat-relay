@@ -15,8 +15,8 @@
 	}
 
 	# Agent 擂台：与聊天站同域名，挂在 /arena 子路径下（登录 cookie 通用）。
-	# 用 handle（不剥前缀），arena 端按 /arena 挂载接收。
-	handle /arena/* {
+	# /arena* 同时匹配无斜杠的 /arena 与 /arena/xxx（handle /arena/* 会漏掉裸 /arena）。
+	handle /arena* {
 		reverse_proxy arena:8081
 	}
 

@@ -106,6 +106,16 @@ WEEKLY_THEMES = [
 
 app = Flask(__name__)
 app.secret_key = SECRET
+# 会话持久化：默认所有登录均为 30 天（不做「记住我」开关，逻辑保持简单）。
+# 注意：SESSION_COOKIE_SECURE=True 要求 https 访问（线上部署为 https，正常生效）；
+# 本地用 http 调试时浏览器会拒绝带 Secure 标记的 cookie，表现为登录不上，
+# 需临时把该项改为 False 或改走 https 才能在本地验证登录。
+# SESSION_COOKIE_SAMESITE=Lax 保证从聊天站链接跳转 /arena 时会带上 arena 自己的 session cookie。
+app.config.update(
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=True,
+    PERMANENT_SESSION_LIFETIME=datetime.timedelta(days=30),
+)
 
 
 @app.context_processor
@@ -432,6 +442,8 @@ def current_user():
             d.commit()
             row = d.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
             session["uid"] = row["id"]
+            # 借聊天站 cookie 自动建档登录的会话同样持久化 30 天
+            session.permanent = True
             return row
     return None
 
@@ -488,6 +500,8 @@ def login():
         d.commit()
         row = d.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
         session["uid"] = row["id"]
+        # 表单登录成功后同样持久化 30 天
+        session.permanent = True
         return redirect(url_for("index"))
     return render_template("login.html")
 
