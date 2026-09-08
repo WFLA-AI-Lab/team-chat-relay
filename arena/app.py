@@ -32,6 +32,11 @@ ADMIN_EMAIL = os.environ.get("WEBUI_ADMIN_EMAIL", "")
 ADMIN_PASSWORD = os.environ.get("WEBUI_ADMIN_PASSWORD", "")
 DEEPSEEK_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 DEEPSEEK_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").rstrip("/")
+# 可选备用供应商：Key 留空即禁用该供应商（模型在前端下拉里也不会出现）。
+OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+OPENROUTER_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
+JIYUAN_KEY = os.environ.get("JIYUAN_API_KEY", "")
+JIYUAN_URL = os.environ.get("JIYUAN_BASE_URL", "https://tokenrhythm.studio/v1").rstrip("/")
 SECRET = os.environ.get("ARENA_SECRET", "dev-secret-change-me")
 DB_PATH = os.environ.get("ARENA_DB", "/data/arena.db")
 # 擂台挂在聊天站同域名下的子路径（如 /arena），从而能复用聊天站的登录 cookie。
@@ -39,7 +44,50 @@ BASE_PATH = os.environ.get("ARENA_BASE_PATH", "/arena").rstrip("/")
 CHAT_RATE_PER_MIN = int(os.environ.get("CHAT_RATE_PER_MIN", "10"))
 CHAT_DAILY_LIMIT = int(os.environ.get("CHAT_DAILY_LIMIT", "100"))
 TAGS = ["学习", "社团", "其它"]
-MODELS = ["deepseek-chat", "deepseek-reasoner"]
+
+# 擂台可选模型。value 是写入数据库 / 传给每个供应商的真实模型标识：
+#   deepseek-chat / deepseek-reasoner            → 走 DeepSeek
+#   openrouter:厂商/模型                          → 走 OpenRouter
+#   jiyuan:模型                                   → 走基元律动（Token Rhythm）
+# label 是给社员看的中文名。provider 为空表示内置 provider。
+# 每个供应商只有在对应 Key 已配置时才出现在下拉里，避免社员选到跑不通的模型。
+MODELS = []
+if DEEPSEEK_KEY:
+    MODELS += [
+        {"value": "deepseek-chat", "label": "DeepSeek-V3（快，日常问答）", "provider": "deepseek"},
+        {"value": "deepseek-reasoner", "label": "DeepSeek-R1（深推理，慢但严谨）", "provider": "deepseek"},
+    ]
+if OPENROUTER_KEY:
+    MODELS += [
+        {"value": "openrouter:deepseek/deepseek-chat-v3-0324", "label": "DeepSeek-V3（经由 OpenRouter）", "provider": "openrouter"},
+        {"value": "openrouter:anthropic/claude-3.5-sonnet", "label": "Claude 3.5 Sonnet（OpenRouter）", "provider": "openrouter"},
+        {"value": "openrouter:openai/gpt-4o-mini", "label": "GPT-4o mini（OpenRouter）", "provider": "openrouter"},
+    ]
+if JIYUAN_KEY:
+    MODELS += [
+        {"value": "jiyuan:glm-5.2", "label": "GLM-5.2（基元律动）", "provider": "jiyuan"},
+        {"value": "jiyuan:deepseek-v4-pro", "label": "DeepSeek-V4-Pro（基元律动）", "provider": "jiyuan"},
+        {"value": "jiyuan:qwen3.7-max", "label": "Qwen3.7-Max（基元律动）", "provider": "jiyuan"},
+        {"value": "jiyuan:kimi-k2.7-code", "label": "Kimi-K2.7（基元律动）", "provider": "jiyuan"},
+    ]
+# 允许的模型 value 集合（用于校验写入的值）
+MODEL_VALUES = {m["value"] for m in MODELS}
+MODEL_LABELS = {m["value"]: m["label"] for m in MODELS}
+
+def default_model():
+    """返回当前可用的默认模型：优先 deepseek-chat；未配 DeepSeek 时用第一个可用模型。"""
+    for v in ("deepseek-chat", "deepseek-reasoner"):
+        if v in MODEL_VALUES:
+            return v
+    return next(iter(MODEL_VALUES), "deepseek-chat")
+
+def provider_for(model):
+    """按模型 value 判断走哪个供应商，返回 (provider, retry_404) 。"""
+    if model.startswith("openrouter:"):
+        return "openrouter"
+    if model.startswith("jiyuan:"):
+        return "jiyuan"
+    return "deepseek"
 
 WEEKLY_THEMES = [
     "学习：做一个帮你学某一科的 Agent",
@@ -58,6 +106,12 @@ WEEKLY_THEMES = [
 
 app = Flask(__name__)
 app.secret_key = SECRET
+
+
+@app.context_processor
+def inject_models():
+    """全局注入擂台可选模型，供所有模板的模型下拉使用（create / pipeline_builder 等）。"""
+    return {"models": MODELS}
 
 # 挂到聊天站同域名的子路径（BASE_PATH），使其能读到聊天站的登录 cookie。
 if BASE_PATH and BASE_PATH != "/":
@@ -264,21 +318,55 @@ def owu_create_model(token, model_id, name, description, system, model, tag):
 
 
 # --------------------------------------------------------------------------
-# DeepSeek 试聊
+# 模型试聊：按 model 前缀路由到对应供应商（deepseek / openrouter / jiyuan）。
 # --------------------------------------------------------------------------
-def deepseek_chat(model, system, history, temperature=0.7, top_p=1.0, max_tokens=2048):
+def _chat_completions(url, payload, key):
+    """向 OpenAI 兼容端点发一次非流式请求，返回 (status, body_dict)。"""
+    status, body = http(
+        "POST", f"{url}/chat/completions", payload, token=key, timeout=180
+    )
+    if not isinstance(body, dict):
+        # OpenRouter 等返回 JSON；若上游给出纯文本错误也转交给调用方
+        try:
+            body = json.loads(body)
+        except Exception:
+            pass
+    return status, body
+
+
+def model_chat(model, system, history, temperature=0.7, top_p=1.0, max_tokens=2048):
+    """按 model 前缀路由到对应供应商发起对话。返回模型回复文本（失败时含错误说明）。"""
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages += history[-12:]
-    payload = {"model": model, "messages": messages, "stream": False}
-    if model != "deepseek-reasoner":
+
+    provider = provider_for(model)
+    if provider == "openrouter":
+        if not OPENROUTER_KEY:
+            return "（未配置 OPENROUTER_API_KEY，无法调用）"
+        # OpenRouter 官方约定：自定义名需走 "model" 提示，且 base_url 下不剥前缀
+        api_model = model.split("openrouter:", 1)[1]
+        url = OPENROUTER_URL
+        key = OPENROUTER_KEY
+    elif provider == "jiyuan":
+        if not JIYUAN_KEY:
+            return "（未配置 JIYUAN_API_KEY，无法调用）"
+        api_model = model.split("jiyuan:", 1)[1]
+        url = JIYUAN_URL
+        key = JIYUAN_KEY
+    else:
+        api_model = model
+        url = DEEPSEEK_URL
+        key = DEEPSEEK_KEY
+
+    payload = {"model": api_model, "messages": messages, "stream": False}
+    if api_model != "deepseek-reasoner":
         payload["temperature"] = float(temperature)
         payload["top_p"] = float(top_p)
     payload["max_tokens"] = int(max_tokens)
-    status, body = http(
-        "POST", f"{DEEPSEEK_URL}/chat/completions", payload, token=DEEPSEEK_KEY, timeout=180
-    )
+
+    status, body = _chat_completions(url, payload, key)
     if status == 200 and isinstance(body, dict):
         try:
             msg = body["choices"][0]["message"]
@@ -293,14 +381,21 @@ def deepseek_chat(model, system, history, temperature=0.7, top_p=1.0, max_tokens
     return f"（调用失败 HTTP {status}: {detail}）"
 
 
+# 兼容旧名：旧代码把入口叫 deepseek_chat。保留别名减小改动面。
+def deepseek_chat(model, system, history, temperature=0.7, top_p=1.0, max_tokens=2048):
+    return model_chat(model, system, history, temperature, top_p, max_tokens)
+
+
 def auto_test(agent_row):
     """用 Agent 的示例问题自动试跑一次，返回 (结果, 时间)。"""
     params = json.loads(agent_row["params"] or "{}")
     example = (params.get("example") or "").strip()
     if not example:
         return "（未填示例问题，跳过自动试跑）", now()
-    if not DEEPSEEK_KEY:
-        return "（未配置 DEEPSEEK_API_KEY，无法试跑）", now()
+    _prov = provider_for(agent_row["model"] or "deepseek-chat")
+    _key = DEEPSEEK_KEY if _prov == "deepseek" else (OPENROUTER_KEY if _prov == "openrouter" else JIYUAN_KEY)
+    if not _key:
+        return f"（模型所属供应商未配置 Key，无法试跑）", now()
     reply = deepseek_chat(
         agent_row["model"], agent_row["system"],
         [{"role": "user", "content": example}],
@@ -466,7 +561,13 @@ def create():
                 theme=current_theme(),
                 error="名称和系统提示词不能为空",
             )
-        model = request.form.get("model", "deepseek-chat")
+        model = request.form.get("model", default_model())
+        # 模型校验：只允许预置列表里的 value，防止注入任意模型串或乱用未配 Key 的供应商。
+        if model not in MODEL_VALUES:
+            if not MODEL_VALUES:
+                return render_template("create.html", user=user, form=form, tags=TAGS, models=MODELS,
+                                       theme=current_theme(), error="当前没有可用模型（未配置任何供应商 Key）")
+            model = default_model()
         tag = request.form.get("tag", "其它")
         model_id = slugify(name) + "-" + secrets.token_hex(3)
         params = {
@@ -673,7 +774,7 @@ def parse_step_form():
         valid.append((
             agent_id,
             nm,
-            (step_models[i] if i < len(step_models) else "deepseek-chat").strip() or "deepseek-chat",
+            (step_models[i] if i < len(step_models) else default_model()).strip() or default_model(),
             (step_systems[i] if i < len(step_systems) else "").strip(),
             (step_instructions[i] if i < len(step_instructions) else "").strip(),
             (step_temps[i] if i < len(step_temps) else "0.7").strip() or "0.7",

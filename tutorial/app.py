@@ -11,18 +11,44 @@ import os
 import re
 
 import markdown
-from flask import Flask, abort, render_template
+import urllib.request
+from flask import Flask, abort, render_template, request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 CONTENT = os.path.join(BASE, "content")
+
+CHAT_URL = "https://" + os.environ.get("CHAT_DOMAIN", "chat.wfla-ailab.top").rstrip("/")
 
 app = Flask(__name__)
 
 
 @app.context_processor
 def inject_site_links():
-    """给模板注入聊天站地址（导航条「门户/聊天站/擂台」链接用）。"""
-    return {"chat_url": "https://" + os.environ.get("CHAT_DOMAIN", "chat.wfla-ailab.top")}
+    """给模板注入聊天站地址与登录态（登录按钮/用户名显示用）。"""
+    return {"chat_url": CHAT_URL, "username": current_username()}
+
+
+def current_username():
+    """读聊天站 token cookie 并向 Open WebUI 验证，返回用户名或 None。
+
+    注意：教程站与聊天站不同子域，浏览器默认不会带 chat 域的 cookie，
+    所以这里大多数时候返回 None（显示登录按钮）；登录后从聊天站「打开教程站」
+    或配置 Cookie Domain 时才能自动识别。作为兜底，前端始终提供显眼登录入口。
+    """
+    token = request.cookies.get("token")
+    if not token:
+        return None
+    try:
+        req = urllib.request.Request(
+            f"{os.environ.get('OPENWEBUI_URL', 'http://open-webui:8080').rstrip('/')}/api/v1/auths/",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            import json as _json
+            info = _json.loads(resp.read().decode("utf-8"))
+            return info.get("name") or info.get("email")
+    except Exception:
+        return None
 
 
 def read_doc(fn):
@@ -62,6 +88,10 @@ def article(slug):
     if not os.path.exists(os.path.join(CONTENT, fn)):
         abort(404)
     title, level, body = read_doc(fn)
+    # 分层访问：入门篇对所有人公开；进阶/维护篇需要登录（复用聊天站账号）。
+    user = current_username()
+    if level != "入门" and not user:
+        return render_template("gate.html", title=title, level=level), 200
     html = markdown.markdown(body, extensions=["fenced_code", "tables", "sane_lists"])
     return render_template("article.html", title=title, content=html, level=level)
 

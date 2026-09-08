@@ -106,8 +106,8 @@ var TEMPLATES = [
       <label>基础模型</label>
       <select name="model">
         {% for m in models %}
-          <option value="{{ m }}" {% if form.get('model') == m %}selected{% endif %}>
-            {{ 'DeepSeek-V3（快，日常问答）' if m == 'deepseek-chat' else 'DeepSeek-R1（深推理，慢但严谨）' }}
+          <option value="{{ m.value }}" {% if form.get('model') == m.value %}selected{% endif %}>
+            {{ m.label }}
           </option>
         {% endfor %}
       </select>

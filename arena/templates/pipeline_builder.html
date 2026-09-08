@@ -23,6 +23,7 @@
 <script>
 const AGENTS = {{ agents|tojson }};
 const PRESET_STEPS = {{ steps_data|tojson }};
+const MODEL_OPTS = {{ models|tojson }};
 
 function statusLabel(st) {
   return st === 'approved' ? '已上架' : st === 'rejected' ? '已拒绝' : '待审核';
@@ -50,8 +51,7 @@ function stepRow(preset, idx) {
     <input class="step-name" name="step_name" value="${escapeHtml(preset.name || '')}" placeholder="例如：初步生成" required>
     <label>模型（选中 Agent 后自动填入，可改）</label>
     <select class="step-model" name="step_model">
-      <option value="deepseek-chat" ${preset.model === 'deepseek-chat' ? 'selected' : ''}>DeepSeek-V3（快）</option>
-      <option value="deepseek-reasoner" ${preset.model === 'deepseek-reasoner' ? 'selected' : ''}>DeepSeek-R1（深推理）</option>
+      ${MODEL_OPTS.map(m => `<option value="${escapeHtml(m.value)}" ${preset.model === m.value ? 'selected' : ''}>${escapeHtml(m.label)}</option>`).join('')}
     </select>
     <label>系统提示词（角色设定，选中 Agent 后自动填入，可改）</label>
     <textarea class="step-system" name="step_system" placeholder="这个步骤的 Agent 是什么角色、什么规则">${escapeHtml(preset.system || '')}</textarea>

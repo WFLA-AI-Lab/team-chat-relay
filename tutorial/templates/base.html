@@ -3,42 +3,175 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#eaf1f9">
 <title>{% block title %}AI 社团教程站{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
-  :root { color-scheme: dark; }
+  :root {
+    --ink: #0e1c30;
+    --muted: #5b6b80;
+    --page: #eaf1f9;
+    --card: #ffffff;
+    --line: rgba(14, 28, 48, .12);
+    --blue: #2967ff;
+    --cyan: #0fb5c9;
+    --cyan-soft: #0794a8;
+    --container: min(860px, calc(100vw - 40px));
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: "Microsoft YaHei", system-ui, sans-serif; background: #0d0f14; color: #e5e7eb; line-height: 1.8; }
-  nav { display: flex; gap: 18px; align-items: center; padding: 12px 20px; background: #161a22; border-bottom: 1px solid #262b36; }
-  nav a { color: #9ca3af; text-decoration: none; font-size: 14px; }
-  nav a:hover { color: #fff; }
-  nav .brand { color: #fff; font-weight: 700; }
-  .container { max-width: 860px; margin: 0 auto; padding: 24px 20px 60px; }
-  .card { background: #161a22; border: 1px solid #262b36; border-radius: 12px; padding: 16px 20px; margin-bottom: 14px; }
-  .card a { color: #93c5fd; text-decoration: none; }
-  .card a:hover { text-decoration: underline; }
-  article h1 { font-size: 26px; border-bottom: 1px solid #262b36; padding-bottom: 12px; }
-  article h2 { font-size: 20px; margin-top: 30px; }
-  article h3 { font-size: 17px; }
-  article code { background: #1c2330; padding: 2px 6px; border-radius: 6px; font-size: 14px; }
-  article pre { background: #12161f; border: 1px solid #2c3345; border-radius: 10px; padding: 14px; overflow: auto; }
-  article pre code { background: none; padding: 0; }
-  article blockquote { border-left: 3px solid #3d5a8a; margin: 12px 0; padding: 4px 14px; color: #9ca3af; background: #12161f; border-radius: 0 8px 8px 0; }
-  article table { border-collapse: collapse; width: 100%; }
-  article th, article td { border: 1px solid #2c3345; padding: 8px 12px; text-align: left; }
-  .back { display: inline-block; margin-bottom: 14px; color: #9ca3af; text-decoration: none; font-size: 14px; }
-  .back:hover { color: #fff; }
-  .muted { color: #6b7280; font-size: 13px; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background:
+      radial-gradient(800px 380px at 88% -6%, rgba(41,103,255,.09), transparent 62%),
+      radial-gradient(640px 340px at -8% 24%, rgba(15,181,201,.07), transparent 58%),
+      var(--page);
+    color: var(--ink);
+    font-family: "Manrope", "Noto Sans SC", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.85;
+  }
+  a { color: inherit; text-decoration: none; }
+
+  .site-header {
+    width: min(1180px, calc(100vw - 48px)); height: 68px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 15px; }
+  .brand-mark {
+    width: 38px; height: 38px; border-radius: 11px; overflow: hidden; background: white;
+    box-shadow: 0 6px 22px rgba(31, 123, 255, .16); display: grid; place-items: center;
+  }
+  .brand-mark span { color: var(--blue); font-size: 15px; font-weight: 900; }
+  .site-nav { display: flex; align-items: center; gap: 22px; font-size: 13px; font-weight: 600; }
+  .site-nav > a { opacity: .72; transition: opacity .2s; }
+  .site-nav > a:hover { opacity: 1; }
+  .nav-login {
+    padding: 9px 18px; border-radius: 999px; font-size: 13px; font-weight: 800;
+    background: linear-gradient(120deg, var(--blue), #1c8cff 62%, var(--cyan));
+    color: white; box-shadow: 0 10px 30px rgba(29, 104, 255, .28); transition: transform .25s, box-shadow .25s;
+  }
+  .nav-login:hover { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(29, 104, 255, .4); }
+  .nav-user { color: var(--cyan-soft); font-weight: 800; font-size: 13px; }
+
+  .page-head { width: var(--container); margin: 0 auto; padding: 52px 0 8px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px;
+    border: 1px solid rgba(41,103,255,.22); background: rgba(41,103,255,.07);
+    border-radius: 999px; color: var(--cyan-soft); font-size: 11px; letter-spacing: .14em; font-weight: 800;
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 0 5px rgba(15,181,201,.12); animation: pulse 2s infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 9px rgba(15,181,201,0); } }
+
+  .container { width: var(--container); margin: 0 auto; padding: 22px 0 70px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    padding: 18px 22px; margin-bottom: 12px;
+    box-shadow: 0 18px 50px rgba(24, 60, 120, .06);
+    transition: transform .3s, box-shadow .3s, border-color .3s;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 26px 66px rgba(24, 60, 120, .1); border-color: rgba(15,181,201,.35); }
+  .card a b { color: var(--ink); font-size: 15.5px; }
+  .card a:hover b { color: var(--blue); }
+  .card .muted { display: block; margin-top: 2px; }
+  .path-label { width: var(--container); margin: 30px auto 14px; }
+  .path-label b { font-family: "Noto Sans SC", sans-serif; font-size: 19px; letter-spacing: -.02em; display: block; }
+  .path-label .muted { font-size: 12.5px; }
+
+  article h1 {
+    font-family: "Noto Sans SC", sans-serif; font-size: 34px; font-weight: 900; letter-spacing: -.04em;
+    margin: 0 0 8px; padding-bottom: 16px; border-bottom: 1px solid var(--line);
+  }
+  article h2 {
+    font-family: "Noto Sans SC", sans-serif; font-size: 22px; margin: 40px 0 12px;
+    padding-left: 12px; border-left: 4px solid var(--cyan);
+  }
+  article h3 { font-size: 17px; margin: 28px 0 10px; }
+  article p { margin: 10px 0; color: rgba(14, 28, 48, .86); font-size: 14.5px; }
+  article li { margin: 6px 0; font-size: 14.5px; }
+  article code {
+    background: rgba(41, 103, 255, .07); color: #1d4fd7; padding: 2px 7px; border-radius: 6px;
+    font-size: 13px; font-family: "Cascadia Code", Consolas, monospace;
+  }
+  article pre {
+    background: #0e1c30; border-radius: 14px; padding: 18px 20px; overflow: auto;
+    box-shadow: 0 18px 50px rgba(10, 30, 70, .25); margin: 18px 0;
+  }
+  article pre code { background: none; padding: 0; color: #cfe3ff; font-size: 13px; }
+  article blockquote {
+    border-left: 3px solid var(--cyan); margin: 16px 0; padding: 10px 16px;
+    color: var(--muted); background: rgba(15, 181, 201, .06); border-radius: 0 10px 10px 0;
+  }
+  article table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 13.5px; background: white; border-radius: 12px; overflow: hidden; }
+  article th { background: rgba(41, 103, 255, .08); color: var(--ink); font-weight: 800; }
+  article th, article td { border: 1px solid var(--line); padding: 9px 13px; text-align: left; }
+
+  .back {
+    display: inline-flex; align-items: center; gap: 8px; margin: 26px 0 18px;
+    color: var(--muted); font-size: 13px; font-weight: 700; padding: 8px 16px;
+    border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.7); transition: .2s;
+  }
+  .back:hover { background: white; color: var(--blue); }
+  .muted { color: var(--muted); font-size: 13px; }
+
+  .gate {
+    background: white; border: 1px solid var(--line); border-radius: 24px;
+    padding: 56px 40px; text-align: center; margin-top: 30px;
+    box-shadow: 0 30px 90px rgba(24, 60, 120, .1);
+  }
+  .gate .icon {
+    width: 64px; height: 64px; margin: 0 auto 20px; border-radius: 18px; display: grid; place-items: center;
+    background: linear-gradient(120deg, var(--blue), #1c8cff 62%, var(--cyan)); color: white; font-size: 26px;
+    box-shadow: 0 16px 44px rgba(29, 104, 255, .3);
+  }
+  .gate h2 { font-family: "Noto Sans SC", sans-serif; font-size: 28px; letter-spacing: -.03em; margin: 0 0 10px; }
+  .gate p { color: var(--muted); font-size: 14px; margin: 0 0 26px; }
+  .gate .nav-login { display: inline-flex; min-height: 50px; align-items: center; padding: 0 30px; font-size: 14px; }
+  .gate .hint { margin-top: 18px; font-size: 12px; color: var(--muted); }
+
+  .site-footer {
+    width: min(1180px, calc(100vw - 48px)); margin: 0 auto; padding: 24px 0 44px;
+    border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+  .site-footer p { margin: 0; color: var(--muted); font-size: 10px; letter-spacing: .16em; }
+  .site-footer nav { display: flex; gap: 20px; font-size: 11px; letter-spacing: .12em; }
+  .site-footer nav a { color: var(--cyan-soft); font-weight: 700; }
+
+  @media (max-width: 720px) {
+    .site-nav > a:not(.nav-login):not(.nav-user) { display: none; }
+    article h1 { font-size: 27px; }
+  }
 </style>
 </head>
 <body>
-<nav>
-  <a class="brand" href="{{ url_for('index') }}">AI 社团 · 教程</a>
-  <a href="{{ chat_url }}/portal">门户</a>
-  <a href="{{ chat_url }}/">聊天站</a>
-  <a href="{{ chat_url }}/arena">擂台</a>
-</nav>
+<header class="site-header">
+  <a class="brand" href="{{ url_for('index') }}">
+    <span class="brand-mark"><span>AI</span></span>
+    <span>AI 社团 · 教程</span>
+  </a>
+  <nav class="site-nav">
+    <a href="{{ chat_url }}/portal" target="_blank" rel="noreferrer">门户</a>
+    <a href="{{ chat_url }}/" target="_blank" rel="noreferrer">聊天站</a>
+    <a href="{{ chat_url }}/arena" target="_blank" rel="noreferrer">擂台</a>
+    {% if username %}
+      <span class="nav-user">{{ username }}</span>
+    {% else %}
+      <a class="nav-login" href="{{ chat_url }}/?login=1" target="_blank" rel="noreferrer">登录</a>
+    {% endif %}
+  </nav>
+</header>
 <div class="container">
 {% block content %}{% endblock %}
 </div>
+<footer class="site-footer">
+  <p>WFLA AI LAB · TUTORIAL</p>
+  <nav>
+    <a href="{{ chat_url }}/portal" target="_blank" rel="noreferrer">门户</a>
+    <a href="https://wfla-ailab.top" target="_blank" rel="noreferrer">招新官网</a>
+    <a href="https://github.com/WFLA-AI-Lab" target="_blank" rel="noreferrer">GITHUB ↗</a>
+  </nav>
+</footer>
 </body>
 </html>

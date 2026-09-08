@@ -28,6 +28,10 @@ sed -i "s/__WEBUI_SECRET_KEY__/$WEBUI_SECRET_KEY/g" .env
 sed -i "s/__ARENA_SECRET__/$ARENA_SECRET/g" .env
 sed -i "s/__WEBUI_ADMIN_PASSWORD__/$WEBUI_ADMIN_PASSWORD/g" .env
 
+# 备用供应商（OpenRouter/基元律动）：留空 = 禁用，用户按需在 .env 填入真实 Key
+sed -i "s/__OPENROUTER_API_KEY__//g" .env
+sed -i "s/__JIYUAN_API_KEY__//g" .env
+
 mkdir -p runtime/backups
 chmod 600 .env
 chmod 700 runtime runtime/backups

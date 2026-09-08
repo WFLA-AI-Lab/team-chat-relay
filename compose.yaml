@@ -67,9 +67,11 @@ services:
       # Let ordinary members create their own models/agents in Workspace.
       USER_PERMISSIONS_WORKSPACE_MODELS_ACCESS: "true"
 
-      # The only upstream is the DeepSeek official API.
+      # The primary upstream is the DeepSeek official API.
       ENABLE_OLLAMA_API: "false"
       ENABLE_OPENAI_API: "true"
+      # 聊天站默认只接 DeepSeek。要加 OpenRouter/基元律动，在部署后于
+      # Admin Panel → Settings → Connections 添加即可（聊天站原生支持多供应商）。
       OPENAI_API_BASE_URL: ${DEEPSEEK_BASE_URL}
       OPENAI_API_KEY: ${DEEPSEEK_API_KEY}
       OPENAI_API_CONFIGS: >-
@@ -157,6 +159,10 @@ services:
       WEBUI_ADMIN_PASSWORD: ${WEBUI_ADMIN_PASSWORD}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL}
+      JIYUAN_API_KEY: ${JIYUAN_API_KEY}
+      JIYUAN_BASE_URL: ${JIYUAN_BASE_URL}
       ARENA_SECRET: ${ARENA_SECRET:-dev-secret-change-me}
       ARENA_DB: /data/arena.db
       # 擂台挂在聊天站同域名子路径，复用聊天站登录 cookie（免二次登录）。
