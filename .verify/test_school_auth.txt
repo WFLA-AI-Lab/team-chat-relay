@@ -1,0 +1,17 @@
+  PASS  normalize_code 去空白
+  PASS  owu_email_for 生成稳定内部邮箱
+  PASS  verify：空账号/空密码不发请求
+  PASS  verify：连不上时归为 network，不抛异常
+  PASS  verify：返回非 JSON 时归为 bad_reply
+  PASS  verify：ResultType=0 → 通过（复刻实测契约）
+  PASS  verify：'Password error' → bad_password
+  PASS  verify：'does not exist' → no_account
+  PASS  parse_bulk：一行一个学号 + 姓名，容忍逗号/空格/注释
+  PASS  白名单：加入→放行→停用→拦截→删除
+  PASS  申请记录：不在白名单的人留档，加入白名单后自动消掉
+  PASS  ensure_tables 幂等：重复调用不报错
+  ---- 真实学校系统探活 ----
+   真实端点返回：reason=no_account message=学校系统里没有这个账号，请检查学号/工号
+  PASS  真实端点契约一致
+
+13/13 通过

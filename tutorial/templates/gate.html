@@ -4,8 +4,8 @@
 <div class="gate">
   <div class="icon">◈</div>
   <h2>这篇教程需要登录后阅读</h2>
-  <p>「{{ title }}」属于{{ level }}篇内容，面向已加入社团的成员。<br>用你的社团账号登录聊天站后即可回来看全文。</p>
-  <a class="nav-login" href="{{ chat_url }}/?login=1&next=https://tutorial.wfla-ailab.top" target="_blank" rel="noreferrer">去聊天站登录 →</a>
-  <p class="hint">还没有账号？在聊天站登录页注册，或联系管理员开通。</p>
+  <p>「{{ title }}」属于{{ level }}篇内容，面向已加入社团的成员。<br>用你的聊天站账号在本站登录后即可阅读全文。</p>
+  <a class="nav-login" href="{{ url_for('login') }}?next={{ request.path }}">登录后阅读 →</a>
+  <p class="hint">登录一次即可：登录状态在聊天站、擂台、教程站通用。还没有账号？联系管理员开通。</p>
 </div>
 {% endblock %}

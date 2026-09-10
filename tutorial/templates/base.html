@@ -157,8 +157,9 @@
     <a href="{{ chat_url }}/arena" target="_blank" rel="noreferrer">擂台</a>
     {% if username %}
       <span class="nav-user">{{ username }}</span>
+      <a href="{{ url_for('logout') }}">退出</a>
     {% else %}
-      <a class="nav-login" href="{{ chat_url }}/?login=1" target="_blank" rel="noreferrer">登录</a>
+      <a class="nav-login" href="{{ url_for('login') }}?next={{ request.path }}">登录</a>
     {% endif %}
   </nav>
 </header>

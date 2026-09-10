@@ -1,0 +1,14 @@
+  PASS  safe_next：只放行站内路径，挡住开放重定向
+  PASS  GET /login 能打开，含邮箱/密码表单
+  PASS  密码错 → 提示错误、且不下发 token cookie
+  PASS  登录成功 → 302 回原来那篇 + 种跨子域 token cookie
+  PASS  next 是外站 → 登录后只跳回站内（防钓鱼跳板）
+  PASS  非本站域名登录 → 不设置 Domain 属性（cookie 只在本域生效）
+  PASS  未登录读进阶篇 → 拦门页；入门篇仍公开
+  PASS  登录后读进阶篇 → 正文出现，导航显示用户名与退出
+  PASS  拦门页的登录按钮指向本站 /login 并带回跳地址
+  PASS  /logout 清掉 token cookie
+  PASS  聊天站不在线时也不 500，只提示密码错
+  PASS  空邮箱/空密码不发请求（直接拦下）
+
+12/12 通过

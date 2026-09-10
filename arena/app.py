@@ -23,7 +23,9 @@ import sqlite3
 import urllib.error
 import urllib.request
 
-from flask import Flask, g, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, g, jsonify, make_response, redirect, render_template, request, session, url_for
+
+import school_auth
 
 # --------------------------------------------------------------------------
 # 配置（来自环境变量）
@@ -45,6 +47,17 @@ BASE_PATH = os.environ.get("ARENA_BASE_PATH", "/arena").rstrip("/")
 CHAT_RATE_PER_MIN = int(os.environ.get("CHAT_RATE_PER_MIN", "10"))
 CHAT_DAILY_LIMIT = int(os.environ.get("CHAT_DAILY_LIMIT", "100"))
 TAGS = ["学习", "社团", "其它"]
+
+# ---- 学校账号登录 + 白名单（实现见 arena/school_auth.py）-----------------
+# SCHOOL_AUTH_ENABLED=1 时登录页出现「用学校账号登录」入口；
+# 关掉它即完全回到原来的「聊天站账号」登录方式，两者互不影响。
+SCHOOL_AUTH_ENABLED = os.environ.get("SCHOOL_AUTH_ENABLED", "0").strip() == "1"
+# 学号映射成聊天站内部邮箱时用的域名（学生看不到这个邮箱）
+SCHOOL_EMAIL_DOMAIN = os.environ.get("SCHOOL_EMAIL_DOMAIN", "stu.wfla-ailab.top").strip()
+# 让登录 cookie 跨子域名（chat./tutorial.）通用；留空则只在当前域名生效
+SCHOOL_COOKIE_DOMAIN = os.environ.get("SCHOOL_COOKIE_DOMAIN", "").strip()
+# 平台登录 cookie 有效期（秒），默认与聊天站一致的 30 天
+LOGIN_COOKIE_MAX_AGE = int(os.environ.get("LOGIN_COOKIE_MAX_AGE", str(30 * 24 * 3600)))
 
 # 擂台可选模型。value 是写入数据库 / 传给每个供应商的真实模型标识：
 #   deepseek-chat / deepseek-reasoner            → 走 DeepSeek
@@ -162,8 +175,11 @@ def current_theme():
 
 @app.context_processor
 def inject_site_links():
-    """给所有模板注入教程站域名（导航条「教程站」链接用）。"""
-    return {"tutorial_domain": os.environ.get("TUTORIAL_DOMAIN", "tutorial.wfla-ailab.top")}
+    """给所有模板注入教程站域名（导航条「教程站」链接用）与统一登录开关。"""
+    return {
+        "tutorial_domain": os.environ.get("TUTORIAL_DOMAIN", "tutorial.wfla-ailab.top"),
+        "school_auth_enabled": SCHOOL_AUTH_ENABLED,
+    }
 
 
 # --------------------------------------------------------------------------
@@ -270,6 +286,8 @@ def db():
     pstep_cols = {r["name"] for r in g.db.execute("PRAGMA table_info(pipeline_steps)")}
     if "agent_id" not in pstep_cols:
         g.db.execute("ALTER TABLE pipeline_steps ADD COLUMN agent_id INTEGER")
+    # 统一登录相关表（白名单 / 内部账号映射 / 开通申请）
+    school_auth.ensure_tables(g.db)
     g.db.commit()
     return g.db
 
@@ -324,6 +342,21 @@ def owu_self(token):
 
 def owu_admin_token():
     return owu_signin(ADMIN_EMAIL, ADMIN_PASSWORD)
+
+
+def owu_find_user_id(token, email):
+    """管理员接口：按邮箱找到聊天站用户 id（找不到返回 None）。"""
+    status, body = http("GET", f"{OPENWEBUI_URL}/api/v1/users/", token=token)
+    if status != 200 or not isinstance(body, dict):
+        return None
+    users = body.get("users") if isinstance(body.get("users"), list) else body
+    if not isinstance(users, list):
+        return None
+    target = (email or "").lower()
+    for u in users:
+        if isinstance(u, dict) and str(u.get("email", "")).lower() == target:
+            return u.get("id")
+    return None
 
 
 def owu_create_model(token, model_id, name, description, system, model, tag):
@@ -523,6 +556,173 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+# --------------------------------------------------------------------------
+# 学校账号统一登录（白名单制）
+# --------------------------------------------------------------------------
+def school_cookie_domain():
+    """登录 cookie 的域：默认跟随请求域名，让 chat./tutorial. 共用一个登录态。"""
+    if SCHOOL_COOKIE_DOMAIN:
+        return SCHOOL_COOKIE_DOMAIN
+    host = (request.host or "").split(":")[0]
+    if host == "wfla-ailab.top" or host.endswith(".wfla-ailab.top"):
+        return ".wfla-ailab.top"
+    return None
+
+
+def owu_provision(code, name):
+    """为通过学校认证的社员准备聊天站内部账号。
+
+    返回 (email, password, error)；error 非空表示失败。
+    账号已存在就复用本地记录的随机密码；不存在就用管理员权限新建。
+    """
+    email = school_auth.owu_email_for(code, SCHOOL_EMAIL_DOMAIN)
+    d = db()
+    row = d.execute("SELECT * FROM school_accounts WHERE code=?", (code,)).fetchone()
+    if row and owu_signin(row["owu_email"], row["owu_password"]):
+        return row["owu_email"], row["owu_password"], ""
+
+    admin = owu_admin_token()
+    if not admin:
+        return None, None, "聊天站管理员凭据不可用，暂时无法开通账号，请联系社长"
+
+    password = secrets.token_urlsafe(18)
+    status, body = http(
+        "POST",
+        f"{OPENWEBUI_URL}/api/v1/auths/add",
+        {"name": name or code, "email": email, "password": password, "role": "user"},
+        token=admin,
+    )
+    if status != 200:
+        # 该邮箱早先被手动建过 → 用管理员接口把密码重置成我们的随机密码
+        detail = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
+        user_id = owu_find_user_id(admin, email)
+        if not user_id:
+            return None, None, f"聊天站账号开通失败：{str(detail)[:120]}"
+        status2, body2 = http(
+            "POST",
+            f"{OPENWEBUI_URL}/api/v1/users/{user_id}/update",
+            {"password": password},
+            token=admin,
+        )
+        if status2 != 200:
+            detail2 = body2 if isinstance(body2, str) else json.dumps(body2, ensure_ascii=False)
+            return None, None, f"聊天站账号密码重置失败：{str(detail2)[:120]}"
+
+    d.execute(
+        "INSERT INTO school_accounts(code, owu_email, owu_password, created_at, last_login) "
+        "VALUES(?,?,?,?,?) ON CONFLICT(code) DO UPDATE SET owu_email=excluded.owu_email,"
+        " owu_password=excluded.owu_password, last_login=excluded.last_login",
+        (code, email, password, now(), now()),
+    )
+    d.commit()
+    return email, password, ""
+
+
+@app.route("/school-login", methods=["GET", "POST"])
+def school_login():
+    """用学校综合系统账号登录社团平台（只有白名单里的账号能进）。
+
+    流程：学校系统校验密码 → 查白名单 → 开通/复用聊天站内部账号 → 建立会话。
+    学生的学校密码只在第一步用一次，不落库、不写日志、不进 session。
+    """
+    if not SCHOOL_AUTH_ENABLED:
+        return redirect(url_for("login"))
+    if current_user():
+        return redirect(url_for("index"))
+    if request.method != "POST":
+        return render_template("school_login.html", error="", code="", pending=False)
+
+    result = school_auth.verify(request.form.get("code", ""), request.form.get("password", ""))
+    norm = school_auth.normalize_code(request.form.get("code", ""))
+    if not result["ok"]:
+        return render_template("school_login.html", error=result["message"],
+                               code=norm, pending=False)
+
+    d = db()
+    entry = school_auth.is_allowed(d, norm)
+    if not entry:
+        # 账号是真的，但还没开通：留档，等社长在后台加白名单
+        school_auth.record_request(d, norm, request.form.get("name", "").strip(),
+                                   request.form.get("message", "").strip(), now())
+        return render_template(
+            "school_login.html", code=norm, pending=True,
+            error="学校账号验证通过，但这个账号还没有开通社团平台权限（白名单制）。"
+                  "申请已记录，社长开通后即可登录。",
+        )
+
+    email, owu_password, err = owu_provision(norm, entry["name"] or norm)
+    if err:
+        return render_template("school_login.html", error=err, code=norm, pending=False)
+
+    token = owu_signin(email, owu_password)
+    if not token:
+        return render_template("school_login.html", error="聊天站登录失败，请联系社长",
+                               code=norm, pending=False)
+
+    # 白名单里勾了「管理员权限」（allowlist.role='admin'）要真的生效：
+    # 此前这里只比较 ADMIN_EMAIL，导致后台那个勾选框勾了没用（已由测试覆盖）。
+    is_admin = 1 if (email == ADMIN_EMAIL or (entry["role"] or "member") == "admin") else 0
+    d.execute(
+        "INSERT INTO users(email, name, is_admin, created_at) VALUES(?,?,?,?) "
+        "ON CONFLICT(email) DO UPDATE SET name=excluded.name, is_admin=excluded.is_admin",
+        (email, entry["name"] or norm, is_admin, now()),
+    )
+    d.commit()
+    row = d.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
+    session["uid"] = row["id"]
+    session.permanent = True
+
+    resp = make_response(redirect(url_for("index")))
+    # 顺手种上聊天站的登录 cookie，于是聊天站/擂台/教程站是同一个登录态。
+    # 不设 httponly：聊天站前端需要读这个 cookie（与聊天站自身行为保持一致）。
+    resp.set_cookie(
+        "token", token, max_age=LOGIN_COOKIE_MAX_AGE, domain=school_cookie_domain(),
+        path="/", samesite="Lax", secure=bool(request.is_secure), httponly=False,
+    )
+    return resp
+
+
+@app.route("/admin/allowlist", methods=["GET", "POST"])
+def admin_allowlist():
+    """社长后台：手动维护白名单（粘贴学号批量加 / 停用 / 删除 / 看申请）。"""
+    user = current_user()
+    if not user or not user["is_admin"]:
+        return redirect(url_for("login"))
+
+    d = db()
+    message = ""
+    if request.method == "POST":
+        action = request.form.get("action", "")
+        if action == "add":
+            entries = school_auth.parse_bulk(request.form.get("codes", ""))
+            if entries:
+                added, updated = school_auth.add_entries(
+                    d, entries, now(),
+                    role="admin" if request.form.get("as_admin") else "member",
+                    note=request.form.get("note", "").strip(),
+                )
+                message = f"已处理 {len(entries)} 个账号：新增 {added} 个，更新 {updated} 个"
+            else:
+                message = "没有解析到任何学号，请一行写一个"
+        elif action == "remove":
+            n = school_auth.remove_entry(d, request.form.get("code", ""))
+            message = f"已从白名单删除 {n} 个账号"
+        elif action == "enable":
+            n = school_auth.set_active(d, request.form.get("code", ""), True)
+            message = f"已启用 {n} 个账号"
+        elif action == "disable":
+            n = school_auth.set_active(d, request.form.get("code", ""), False)
+            message = f"已停用 {n} 个账号"
+        else:
+            message = "未知操作"
+
+    return render_template(
+        "admin_allowlist.html", user=user, message=message,
+        entries=school_auth.list_entries(d), requests=school_auth.pending_requests(d),
+        school_auth_enabled=SCHOOL_AUTH_ENABLED,
+    )
 
 
 @app.route("/guide")

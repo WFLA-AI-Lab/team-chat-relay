@@ -8,3 +8,10 @@ runtime/*
 *.db
 .DS_Store
 Thumbs.db
+
+# Python 字节码：不该进版本库（跑一次就变，纯噪音）
+__pycache__/
+*.pyc
+
+# 渲染复核产出的页面快照（.verify/*.md 之类的文档要留，这些是生成物）
+.verify/render/

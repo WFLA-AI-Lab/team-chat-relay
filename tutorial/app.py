@@ -7,17 +7,22 @@
 依赖：flask, markdown（容器启动时自动安装）。
 """
 
+import json
 import os
 import re
 
 import markdown
 import urllib.request
-from flask import Flask, abort, render_template, request
+from flask import Flask, abort, make_response, redirect, render_template, request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 CONTENT = os.path.join(BASE, "content")
 
 CHAT_URL = "https://" + os.environ.get("CHAT_DOMAIN", "chat.wfla-ailab.top").rstrip("/")
+OPENWEBUI_URL = os.environ.get("OPENWEBUI_URL", "http://open-webui:8080").rstrip("/")
+# 让登录 cookie 跨子域名生效；留空则按请求域名自动判断（*.wfla-ailab.top）
+COOKIE_DOMAIN = os.environ.get("COOKIE_DOMAIN", "").strip()
+COOKIE_MAX_AGE = int(os.environ.get("LOGIN_COOKIE_MAX_AGE", str(30 * 24 * 3600)))
 
 app = Flask(__name__)
 
@@ -29,11 +34,11 @@ def inject_site_links():
 
 
 def current_username():
-    """读聊天站 token cookie 并向 Open WebUI 验证，返回用户名或 None。
+    """读 token cookie 并向 Open WebUI 验证，返回用户名或 None。
 
-    注意：教程站与聊天站不同子域，浏览器默认不会带 chat 域的 cookie，
-    所以这里大多数时候返回 None（显示登录按钮）；登录后从聊天站「打开教程站」
-    或配置 Cookie Domain 时才能自动识别。作为兜底，前端始终提供显眼登录入口。
+    教程站与聊天站不同子域，浏览器不会自动带上聊天站的 host-only cookie，
+    所以本站提供 /login：用聊天站账号在本站登录一次，把 token 种到
+    .wfla-ailab.top 上（见 login()），教程站之后就能自己认出登录态。
     """
     token = request.cookies.get("token")
     if not token:
@@ -49,6 +54,82 @@ def current_username():
             return info.get("name") or info.get("email")
     except Exception:
         return None
+
+
+def owu_signin(email, password):
+    """拿聊天站账号换一个 token；失败返回 None。
+
+    密码只用于这一次校验，不落库、不写日志（与擂台 school_auth 的约定一致）。
+    """
+    payload = json.dumps({"email": email, "password": password}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{OPENWEBUI_URL}/api/v1/auths/signin",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        token = body.get("token") if isinstance(body, dict) else None
+        return token or None
+    except Exception:
+        return None
+
+
+def cookie_domain():
+    """登录 cookie 的作用域：默认跟随请求域名，让 chat./arena. 共用一个登录态。"""
+    if COOKIE_DOMAIN:
+        return COOKIE_DOMAIN
+    host = (request.host or "").split(":")[0]
+    if host == "wfla-ailab.top" or host.endswith(".wfla-ailab.top"):
+        return ".wfla-ailab.top"
+    return None
+
+
+def safe_next(target):
+    """只允许跳回本站路径，防止被当成开放重定向跳板。"""
+    if target and target.startswith("/") and not target.startswith("//"):
+        return target
+    return "/"
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    """教程站站内登录：用聊天站账号在本站登录，登录完回原来那篇教程。
+
+    成功后把 token 种到 .wfla-ailab.top，于是：
+      - 教程站的进阶/维护篇立刻可读；
+      - 同一浏览器访问聊天站/擂台也认这个登录态。
+    """
+    nxt = safe_next(request.values.get("next", "/"))
+    if request.method != "POST":
+        return render_template("login.html", error="", email="", next=nxt)
+
+    email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
+    token = owu_signin(email, password) if email and password else None
+    if not token:
+        return render_template(
+            "login.html", next=nxt, email=email,
+            error="邮箱或密码不对（请用聊天站的账号）",
+        ), 200
+
+    resp = make_response(redirect(nxt))
+    # 不设 httponly：聊天站前端同样要读这个 cookie，保持一致
+    resp.set_cookie(
+        "token", token, max_age=COOKIE_MAX_AGE, domain=cookie_domain(),
+        path="/", samesite="Lax", secure=bool(request.is_secure), httponly=False,
+    )
+    return resp
+
+
+@app.route("/logout")
+def logout():
+    """退出登录：把跨域 token cookie 清掉。"""
+    resp = make_response(redirect("/"))
+    resp.delete_cookie("token", domain=cookie_domain(), path="/")
+    return resp
 
 
 def read_doc(fn):

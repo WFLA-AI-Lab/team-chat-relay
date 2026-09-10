@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}登录 · AI 社团教程{% endblock %}
+{% block content %}
+<div class="gate" style="max-width:460px;margin:34px auto;">
+  <div class="icon">◆</div>
+  <h2>登录教程站</h2>
+  <p>用你的<strong>聊天站账号</strong>登录一次：进阶篇与维护篇立刻可读，
+    同一个浏览器打开聊天站和擂台也是登录状态。</p>
+
+  {% if error %}
+  <div style="background:#fde3e3;color:#b42323;padding:10px 14px;border-radius:9px;
+              margin-bottom:16px;font-size:14px;">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" style="text-align:left;">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label for="email" style="display:block;font-size:13px;color:var(--muted);margin:0 0 6px;">邮箱</label>
+    <input id="email" type="email" name="email" value="{{ email }}" required autofocus
+           style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;
+                  font-size:14px;font-family:inherit;background:#fff;color:var(--ink);">
+    <label for="password" style="display:block;font-size:13px;color:var(--muted);margin:16px 0 6px;">密码</label>
+    <input id="password" type="password" name="password" required
+           style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;
+                  font-size:14px;font-family:inherit;background:#fff;color:var(--ink);">
+    <button type="submit" class="nav-login"
+            style="margin-top:22px;width:100%;border:0;cursor:pointer;justify-content:center;">登录</button>
+  </form>
+
+  <p class="hint">还没有账号？<a href="{{ chat_url }}/" target="_blank" rel="noreferrer">去聊天站</a>注册，或联系管理员开通。</p>
+</div>
+{% endblock %}

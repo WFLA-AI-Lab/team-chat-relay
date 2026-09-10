@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}用学校账号登录 · AI 社团{% endblock %}
+{% block content %}
+<div style="max-width:460px;margin:56px auto;">
+  <h2>用学校账号登录</h2>
+  <p class="muted">
+    账号密码就是你在 <strong>WFLA 高中综合系统</strong> 里用的那一套（学号 / 工号 + 密码）。
+    平台不会保存你的学校密码，只拿它去学校系统验证一次。
+  </p>
+  <p class="muted">
+    本平台实行<strong>白名单制</strong>：学校账号能通过验证，还需要社长把你的学号加入白名单才能进入。
+    <a href="/portal">门户页</a> · <a href="{{ url_for('guide') }}">新手引导</a>
+  </p>
+
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  {% if pending %}
+  <div class="card">
+    <h3 style="margin-top:0;">想让社长快点开通？留一句话</h3>
+    <form method="post">
+      <input type="hidden" name="code" value="{{ code }}">
+      <label>你的名字（选填）</label>
+      <input type="text" name="name" maxlength="40" placeholder="张三">
+      <label>给社长的话（选填）</label>
+      <input type="text" name="message" maxlength="120" placeholder="我是高一3班的，想参加每周三的活动">
+      <p class="muted" style="margin-top:12px;">提交前需要再填一次学校密码重新验证（平台不留存密码）。</p>
+      <label>学校密码</label>
+      <input type="password" name="password" required>
+      <div style="margin-top:18px;"><button type="submit">重新验证并提交申请</button></div>
+    </form>
+  </div>
+  {% else %}
+  <form method="post">
+    <label>学号 / 工号</label>
+    <input type="text" name="code" value="{{ code }}" required autofocus maxlength="24" placeholder="例如 2025001">
+    <label>学校系统密码</label>
+    <input type="password" name="password" required maxlength="64">
+    <div style="margin-top:18px;"><button type="submit">登录</button></div>
+  </form>
+  {% endif %}
+
+  <p class="muted" style="margin-top:22px;">
+    已经有聊天站账号？<a href="{{ url_for('login') }}">改用聊天站账号登录</a>
+  </p>
+</div>
+{% endblock %}

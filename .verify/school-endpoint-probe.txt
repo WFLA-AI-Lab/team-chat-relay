@@ -1,0 +1,19 @@
+# 学校系统接口探活记录（2026-09-10T02:01:42Z）
+# 只用不存在的账号，不涉及任何真实凭据
+
+## 1) 登录页可达
+GET /Home/Login -> HTTP 200 (server=text/html; charset=utf-8)
+
+## 2) 不存在的账号
+POST /Home/Login code=probe_nonexistent_zzz -> {"ResultType":1,"Message":"Login account does not exist","Data":null}
+
+## 3) 存在的账号 + 错误密码（区分账号不存在/密码错误）
+POST /Home/Login code=admin&password=wrong -> {"ResultType":1,"Message":"Password error","Data":null}
+
+## 4) 未登录的受保护页
+GET /Stu/Cas/GroupDetail/202 -> HTTP 302 -> http://101.227.232.33:8001/Home/Login?ReturnUrl=%2FStu%2FCas%2FGroupDetail%2F202
+GET /api -> HTTP 404
+GET /swagger -> HTTP 404
+
+## 5) 登录表单字段（来自页面 HTML）
+form 字段: code / password / remember；无验证码字段

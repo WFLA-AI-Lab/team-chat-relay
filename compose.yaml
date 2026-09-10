@@ -139,6 +139,10 @@ services:
     environment:
       TZ: ${TZ}
       CHAT_DOMAIN: ${CHAT_DOMAIN}
+      # 教程站站内登录：拿聊天站账号验一次密码（容器在同一 frontend 网里）
+      OPENWEBUI_URL: http://open-webui:8080
+      # 登录 cookie 的作用域；留空 = 按请求域名自动判断（*.wfla-ailab.top）
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
     volumes:
       - ./tutorial:/app
     ports:
@@ -172,6 +176,12 @@ services:
       CHAT_DAILY_LIMIT: "100"
       # 门户页/教程站域名：导航条与门户页跳转用
       TUTORIAL_DOMAIN: ${TUTORIAL_DOMAIN}
+      # 学校账号统一登录 + 白名单（1=开启入口；0=只用聊天站账号登录）
+      SCHOOL_AUTH_ENABLED: ${SCHOOL_AUTH_ENABLED:-0}
+      SCHOOL_LOGIN_URL: ${SCHOOL_LOGIN_URL:-http://101.227.232.33:8001/Home/Login}
+      SCHOOL_EMAIL_DOMAIN: ${SCHOOL_EMAIL_DOMAIN:-stu.wfla-ailab.top}
+      # 登录 cookie 跨子域名的域（留空=自动按请求域名判断）
+      SCHOOL_COOKIE_DOMAIN: ${SCHOOL_COOKIE_DOMAIN:-}
     volumes:
       - ./arena:/app
       - arena_data:/data

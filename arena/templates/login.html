@@ -12,5 +12,14 @@
     <input type="password" name="password" required>
     <div style="margin-top:18px;"><button type="submit">登录</button></div>
   </form>
+  {% if school_auth_enabled %}
+  <div class="card" style="margin-top:22px;">
+    <h3 style="margin-top:0;">社员请用学校账号登录</h3>
+    <p class="muted" style="margin-bottom:14px;">
+      账号密码和 WFLA 高中综合系统一致（白名单制，社长开通后才能登录）。
+    </p>
+    <a class="btn" href="{{ url_for('school_login') }}">用学校账号登录</a>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}
