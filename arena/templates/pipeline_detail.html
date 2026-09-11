@@ -22,6 +22,15 @@
 </div>
 {% endif %}
 
+<div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+  <form method="post" action="{{ url_for('pipeline_copy', pipeline_id=pipeline['id']) }}" style="margin:0;">
+    <button type="submit" class="btn-ghost">复制到我的</button>
+  </form>
+  <span class="muted">
+    深拷贝一条完全属于你的副本（作者是你、默认未共享），可以随便改步骤、不影响原流水线。
+  </span>
+</div>
+
 <h3 style="margin-top:18px;">数据流</h3>
 <div class="card" style="overflow-x:auto;">
   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">

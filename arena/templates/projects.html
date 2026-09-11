@@ -18,9 +18,11 @@
     </div>
     <p class="muted" style="margin:8px 0;">by {{ p['author_name'] or '未知成员' }} · {{ p['created_at'] }}</p>
     <p style="margin:8px 0;font-size:14px;">{{ p['description'] }}</p>
-    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;">
       <a class="btn" href="https://github.com/{{ p['github_owner'] }}/{{ p['github_repo'] }}" target="_blank" rel="noopener">查看仓库 ↗</a>
       {% if p['demo_url'] %}<a class="btn btn-ghost" href="{{ p['demo_url'] }}" target="_blank" rel="noopener">在线演示 ↗</a>{% endif %}
+      <button type="button" class="btn btn-ghost js-share"
+              data-share="{{ p['display_name'] }}（{{ p['tag'] }}）https://github.com/{{ p['github_owner'] }}/{{ p['github_repo'] }} —— 来自 WFLA AI 社团作品廊 https://wfla-ailab.top/showcase.html#pc-{{ p['github_owner'] }}-{{ p['github_repo'] }}">复制分享文案</button>
     </div>
   </div>
 {% else %}
@@ -87,4 +89,36 @@
   <p class="muted">你还没提交过作品，<a href="{{ url_for('project_submit') }}">去提交一个</a>！</p>
 {% endfor %}
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+// 一键分享：复制「作品名 + 仓库链接 + 官网作品廊直达锚点」。
+// 优先用剪贴板 API；非 https（本地调试）或老浏览器退回 textarea + execCommand。
+async function copyShareText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* 继续退回 */ }
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.top = '-1000px';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  return ok;
+}
+
+document.addEventListener('click', async function (ev) {
+  const btn = ev.target.closest('.js-share');
+  if (!btn) return;
+  const original = btn.textContent;
+  const ok = await copyShareText(btn.dataset.share || '');
+  btn.textContent = ok ? '已复制 ✓' : '复制失败，请手动选';
+  setTimeout(function () { btn.textContent = original; }, 1800);
+});
+</script>
 {% endblock %}

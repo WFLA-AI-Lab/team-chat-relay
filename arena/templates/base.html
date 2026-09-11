@@ -54,6 +54,17 @@
   .modal .panel { background: #ffffff; border: 1px solid rgba(14,28,48,.1); border-radius: 14px; padding: 20px; width: min(640px, 92vw); max-height: 86vh; overflow: auto; box-shadow: 0 24px 60px rgba(24,60,120,.18); }
   .close { float: right; cursor: pointer; color: #5a6a80; font-size: 18px; }
   .comment { border-top: 1px solid rgba(14,28,48,.08); padding: 8px 0; font-size: 13px; }
+  .notice-banner { display: flex; align-items: flex-start; gap: 10px; padding: 11px 20px; background: linear-gradient(90deg,rgba(41,103,255,.12),rgba(15,181,201,.12)); border-bottom: 1px solid rgba(41,103,255,.25); color: #1a2436; font-size: 14px; }
+  .notice-banner .notice-dot { flex: 0 0 auto; width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: #0ea5b7; box-shadow: 0 0 0 4px rgba(14,165,183,.15); }
+  .bars { display: flex; flex-direction: column; gap: 9px; margin-top: 6px; }
+  .bar-row { display: grid; grid-template-columns: 150px 1fr 56px; align-items: center; gap: 10px; font-size: 13px; }
+  /* 这两个是 span：不改 display 的话 width/height 不生效，条形图会整条看不见 */
+  .bar-track { display: block; background: #eef2f9; border-radius: 999px; height: 10px; overflow: hidden; }
+  .bar-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg,#2967ff,#0fb5c9); min-width: 2px; }
+  .bar-value { text-align: right; font-weight: 700; color: #1a2436; }
+  .stat-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .stat-card { background: #f2f6fc; border: 1px solid rgba(14,28,48,.08); border-radius: 12px; padding: 12px 14px; }
+  .stat-card b { display: block; font-size: 24px; line-height: 1.25; color: #1a2436; }
 </style>
 </head>
 <body>
@@ -68,7 +79,8 @@
   <a href="{{ url_for('mine') }}">我的</a>
   <a href="{{ url_for('guide') }}">新手引导</a>
   {% if user and user['is_admin'] %}<a href="{{ url_for('admin_page') }}">审核</a>
-  <a href="{{ url_for('admin_allowlist') }}">白名单</a>{% endif %}
+  <a href="{{ url_for('admin_allowlist') }}">白名单</a>
+  <a href="{{ url_for('admin_stats') }}">看板</a>{% endif %}
   <span class="right">
     {% if user %}
       <span class="muted">{{ user['name'] }}{% if user['is_admin'] %}（管理员）{% endif %}</span>
@@ -79,6 +91,12 @@
     {% endif %}
   </span>
 </nav>
+{% if notice %}
+<div class="notice-banner" role="status">
+  <span class="notice-dot"></span>
+  <span><b>社团公告：</b>{{ notice }}</span>
+</div>
+{% endif %}
 <div class="container">
 {% block content %}{% endblock %}
 </div>

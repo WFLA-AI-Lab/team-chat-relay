@@ -173,12 +173,26 @@ def current_theme():
     return WEEKLY_THEMES[week_num % len(WEEKLY_THEMES)]
 
 
+def current_notice():
+    """站内公告：存在 settings 表里（照 theme_override 的读写方式）。
+
+    返回去掉两端空白的字符串；空字符串 = 没有公告，导航下方不显示横幅。
+    社长在 /admin/stats 页面里写。
+    """
+    try:
+        row = db().execute("SELECT value FROM settings WHERE key='notice'").fetchone()
+    except Exception:  # noqa: BLE001 —— 任何页面都不该因为公告读失败而 500
+        return ""
+    return (row["value"] or "").strip() if row else ""
+
+
 @app.context_processor
 def inject_site_links():
-    """给所有模板注入教程站域名（导航条「教程站」链接用）与统一登录开关。"""
+    """给所有模板注入教程站域名（导航条「教程站」链接用）、统一登录开关与站内公告。"""
     return {
         "tutorial_domain": os.environ.get("TUTORIAL_DOMAIN", "tutorial.wfla-ailab.top"),
         "school_auth_enabled": SCHOOL_AUTH_ENABLED,
+        "notice": current_notice(),
     }
 
 
@@ -1145,6 +1159,42 @@ def pipeline_detail(pipeline_id):
     )
 
 
+@app.route("/pipeline/<int:pipeline_id>/copy", methods=["POST"])
+def pipeline_copy(pipeline_id):
+    """把可见的流水线复制一份到自己名下（深拷贝，改副本不影响源）。
+
+    可见性跟详情页一致：本人的 / 已共享的 / 管理员可见的，才能复制。
+    副本一律 is_shared=0，避免"复制出来的东西自动又共享出去"。
+    """
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+    d = db()
+    p = d.execute("SELECT * FROM pipelines WHERE id=?", (pipeline_id,)).fetchone()
+    if not p or (p["author_id"] != user["id"] and not p["is_shared"] and not user["is_admin"]):
+        return redirect(url_for("pipelines"))
+    steps = d.execute(
+        "SELECT * FROM pipeline_steps WHERE pipeline_id=? ORDER BY position ASC",
+        (pipeline_id,),
+    ).fetchall()
+    now_s = now()
+    cur = d.execute(
+        "INSERT INTO pipelines(name, description, author_id, is_shared, created_at, updated_at) "
+        "VALUES(?,?,?,0,?,?)",
+        (f"{p['name']}（副本）", p["description"] or "", user["id"], now_s, now_s),
+    )
+    new_id = cur.lastrowid
+    for s in steps:
+        d.execute(
+            "INSERT INTO pipeline_steps(pipeline_id, position, agent_id, name, model, system, "
+            "instruction, temperature, max_tokens) VALUES(?,?,?,?,?,?,?,?,?)",
+            (new_id, s["position"], s["agent_id"], s["name"], s["model"], s["system"],
+             s["instruction"], s["temperature"], s["max_tokens"]),
+        )
+    d.commit()
+    return redirect(url_for("pipeline_detail", pipeline_id=new_id))
+
+
 @app.route("/api/pipeline/share", methods=["POST"])
 def api_pipeline_share():
     user = current_user()
@@ -1347,6 +1397,103 @@ def admin_page():
     ).fetchall()
     return render_template("admin.html", user=user, agents=rows,
                            theme=current_theme())
+
+
+def _scalar(d, sql, args=()):
+    """取一个整数聚合值；出错一律退回 0 —— 空库/老库不该让看板 500。"""
+    try:
+        row = d.execute(sql, args).fetchone()
+    except Exception:  # noqa: BLE001
+        return 0
+    if row is None:
+        return 0
+    try:
+        return int(row[0] or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+@app.route("/admin/stats")
+def admin_stats():
+    """社长数据看板：把散在几个页面里的数字聚成一页（纯 SQL 聚合 + 纯 CSS 条形图）。"""
+    user = current_user()
+    if not user:
+        return redirect(url_for("login"))
+    if not user["is_admin"]:
+        return redirect(url_for("index"))
+    groups, todo = collect_stats(db())
+    return render_template("admin_stats.html", user=user, groups=groups,
+                           notice=current_notice(), todo=todo)
+
+
+def collect_stats(d):
+    """算出看板要用的所有数字，返回 (groups, todo)。
+
+    单独抽成函数是为了让测试能直接断言"页面上的数字 = sqlite 手查的数字"。
+    """
+    week_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    today = datetime.date.today().isoformat()
+
+    todo = {
+        "agents": _scalar(d, "SELECT COUNT(*) FROM agents WHERE status='pending'"),
+        "projects": _scalar(d, "SELECT COUNT(*) FROM projects WHERE status='pending'"),
+        "join": _scalar(d, "SELECT COUNT(*) FROM join_requests WHERE handled=0"),
+    }
+    groups = [
+        {
+            "title": "内容",
+            "items": [
+                {"label": "待审 Agent", "value": todo["agents"]},
+                {"label": "已上架 Agent", "value": _scalar(d, "SELECT COUNT(*) FROM agents WHERE status='approved'")},
+                {"label": "已拒绝 Agent", "value": _scalar(d, "SELECT COUNT(*) FROM agents WHERE status='rejected'")},
+                {"label": "待审作品", "value": todo["projects"]},
+                {"label": "已上架作品", "value": _scalar(d, "SELECT COUNT(*) FROM projects WHERE status='approved'")},
+            ],
+        },
+        {
+            "title": "人",
+            "items": [
+                {"label": "平台用户", "value": _scalar(d, "SELECT COUNT(*) FROM users")},
+                {"label": "近 7 天新增用户", "value": _scalar(d, "SELECT COUNT(*) FROM users WHERE created_at>=?", (week_ago,))},
+                {"label": "白名单在用", "value": _scalar(d, "SELECT COUNT(*) FROM allowlist WHERE active=1")},
+                {"label": "白名单已停用", "value": _scalar(d, "SELECT COUNT(*) FROM allowlist WHERE active=0")},
+                {"label": "待处理开通申请", "value": todo["join"]},
+                {"label": "学校账号已开通", "value": _scalar(d, "SELECT COUNT(*) FROM school_accounts")},
+            ],
+        },
+        {
+            "title": "用量",
+            "items": [
+                {"label": "今日试聊", "value": _scalar(d, "SELECT COUNT(*) FROM chat_log WHERE date(created_at)=?", (today,))},
+                {"label": "近 7 天试聊", "value": _scalar(d, "SELECT COUNT(*) FROM chat_log WHERE created_at>=?", (week_ago,))},
+                {"label": "流水线运行总数", "value": _scalar(d, "SELECT COUNT(*) FROM pipeline_runs")},
+                {"label": "近 7 天流水线运行", "value": _scalar(d, "SELECT COUNT(*) FROM pipeline_runs WHERE created_at>=?", (week_ago,))},
+                {"label": "流水线总数", "value": _scalar(d, "SELECT COUNT(*) FROM pipelines")},
+                {"label": "已共享流水线", "value": _scalar(d, "SELECT COUNT(*) FROM pipelines WHERE is_shared=1")},
+            ],
+        },
+    ]
+    return groups, todo
+
+
+@app.route("/admin/notice", methods=["POST"])
+def admin_set_notice():
+    """写/清站内公告（存 settings 表；清空即删除，横幅随之消失）。"""
+    user = current_user()
+    if not user or not user["is_admin"]:
+        return redirect(url_for("login"))
+    text = (request.form.get("notice") or "").strip()[:500]
+    d = db()
+    if text:
+        d.execute(
+            "INSERT INTO settings(key, value) VALUES('notice', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (text,),
+        )
+    else:
+        d.execute("DELETE FROM settings WHERE key='notice'")
+    d.commit()
+    return redirect(url_for("admin_stats"))
 
 
 # --------------------------------------------------------------------------

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}数据看板 · Agent 擂台{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+  <h2 style="margin:0;">数据看板</h2>
+  <span class="muted">待审 Agent / 作品 / 白名单申请 / 试聊量 —— 全部由擂台库实时聚合，只统计数量，不含任何对话正文。</span>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 10px;">需要你处理</h3>
+  <div class="stat-cards">
+    <div class="stat-card"><b>{{ todo['agents'] }}</b><span class="muted">待审 Agent</span></div>
+    <div class="stat-card"><b>{{ todo['projects'] }}</b><span class="muted">待审作品</span></div>
+    <div class="stat-card"><b>{{ todo['join'] }}</b><span class="muted">待处理开通申请</span></div>
+  </div>
+  <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+    <a class="btn" href="{{ url_for('admin_page') }}">去审核 Agent</a>
+    <a class="btn btn-ghost" href="{{ url_for('projects') }}">去审核作品</a>
+    <a class="btn btn-ghost" href="{{ url_for('admin_allowlist') }}">去处理白名单</a>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 4px;">站内公告</h3>
+  <p class="muted" style="margin:0 0 10px;">
+    写在这里的文字会出现在所有擂台页面的导航下方（教程站的公告写 <code>tutorial/content/_notice.md</code>）。
+    清空后保存即撤下横幅。
+  </p>
+  <form method="post" action="{{ url_for('admin_set_notice') }}">
+    <textarea name="notice" maxlength="500" placeholder="例：本周五 16:30 机房活动，主题「提示词工程」，记得带电脑。">{{ notice }}</textarea>
+    <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <button type="submit">保存公告</button>
+      <span class="muted">最多 500 字；保存后刷新任意擂台页面即可看到横幅</span>
+    </div>
+  </form>
+</div>
+
+{% for g in groups %}
+{% set maxv = (g['items'] | map(attribute='value') | max) or 1 %}
+<div class="card">
+  <h3 style="margin:0 0 4px;">{{ g['title'] }}</h3>
+  <div class="bars">
+    {% for it in g['items'] %}
+    <div class="bar-row">
+      <span class="muted">{{ it['label'] }}</span>
+      <span class="bar-track"><span class="bar-fill" style="width: {{ (it['value'] * 100 / maxv) | round(1) }}%;"></span></span>
+      <span class="bar-value">{{ it['value'] }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+
+<p class="muted">数字与 <code>sqlite3 /data/arena.db</code> 手查一致；空库时全为 0，不会报错。</p>
+{% endblock %}

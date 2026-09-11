@@ -66,6 +66,13 @@ class NotJsonHandler(BaseHTTPRequestHandler):
 
 
 def serve(handler):
+    """起一个本地回环 HTTP 服务器。
+
+    注意超时：下面几处客户端超时都放宽到 15s。原来写 3s，机器一忙（比如同时在
+    跑无头浏览器截图）就会真的超时，于是 verify() 归成 network、断言里的 reason
+    对不上 —— 表现为"12 项里偶尔挂 1 项"的假失败。回环请求本来就是毫秒级，
+    放宽超时不会掩盖真 bug（真卡死照样 15s 后失败），只是把抖动去掉。
+    """
     srv = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
@@ -116,7 +123,7 @@ def t_verify_badreply():
     srv = serve(NotJsonHandler)
     try:
         url = f"http://127.0.0.1:{srv.server_address[1]}/Home/Login"
-        r = school_auth.verify("2025001", "x", url=url, timeout=3)
+        r = school_auth.verify("2025001", "x", url=url, timeout=15)
         assert r["reason"] == school_auth.REASON_BAD_REPLY, r
     finally:
         srv.shutdown()
@@ -127,7 +134,7 @@ def t_verify_ok():
     srv = serve(FakeHandler)
     try:
         url = f"http://127.0.0.1:{srv.server_address[1]}/Home/Login"
-        r = school_auth.verify("2025001", "school-pass", url=url, timeout=3)
+        r = school_auth.verify("2025001", "school-pass", url=url, timeout=15)
         assert r["ok"] and r["reason"] == school_auth.REASON_OK, r
         assert r["raw"]["ResultType"] == 0
     finally:
@@ -139,7 +146,7 @@ def t_verify_badpw():
     srv = serve(FakeHandler)
     try:
         url = f"http://127.0.0.1:{srv.server_address[1]}/Home/Login"
-        r = school_auth.verify("2025001", "wrong", url=url, timeout=3)
+        r = school_auth.verify("2025001", "wrong", url=url, timeout=15)
         assert not r["ok"] and r["reason"] == school_auth.REASON_BAD_PASSWORD, r
         assert "密码" in r["message"], r
     finally:
@@ -151,7 +158,7 @@ def t_verify_noacct():
     srv = serve(FakeHandler)
     try:
         url = f"http://127.0.0.1:{srv.server_address[1]}/Home/Login"
-        r = school_auth.verify("ghost", "x", url=url, timeout=3)
+        r = school_auth.verify("ghost", "x", url=url, timeout=15)
         assert r["reason"] == school_auth.REASON_NO_ACCOUNT, r
         assert "没有这个账号" in r["message"], r
     finally:

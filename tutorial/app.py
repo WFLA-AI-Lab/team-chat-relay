@@ -17,6 +17,8 @@ from flask import Flask, abort, make_response, redirect, render_template, reques
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 CONTENT = os.path.join(BASE, "content")
+# 站内公告：content/_notice.md（下划线前缀 → 不会出现在文章列表里）
+NOTICE_FILE = os.path.join(CONTENT, "_notice.md")
 
 CHAT_URL = "https://" + os.environ.get("CHAT_DOMAIN", "chat.wfla-ailab.top").rstrip("/")
 OPENWEBUI_URL = os.environ.get("OPENWEBUI_URL", "http://open-webui:8080").rstrip("/")
@@ -26,11 +28,33 @@ COOKIE_MAX_AGE = int(os.environ.get("LOGIN_COOKIE_MAX_AGE", str(30 * 24 * 3600))
 
 app = Flask(__name__)
 
+MARKDOWN_EXTS = ["fenced_code", "tables", "sane_lists"]
+
+
+def read_notice():
+    """读取站内公告 content/_notice.md，返回渲染好的 HTML（没有公告时返回空串）。
+
+    社长改这个 md 文件即可，刷新即生效；文件不存在/内容为空 → 页面不显示横幅。
+    """
+    try:
+        with open(NOTICE_FILE, "r", encoding="utf-8") as fh:
+            raw = fh.read().strip()
+    except OSError:
+        return ""
+    if not raw:
+        return ""
+    # 允许写 frontmatter，但横幅只显示正文
+    m = re.match(r"^---\s*\n.*?\n---\s*\n", raw, re.S)
+    if m:
+        raw = raw[m.end():].strip()
+    return markdown.markdown(raw, extensions=MARKDOWN_EXTS) if raw else ""
+
 
 @app.context_processor
 def inject_site_links():
-    """给模板注入聊天站地址与登录态（登录按钮/用户名显示用）。"""
-    return {"chat_url": CHAT_URL, "username": current_username()}
+    """给模板注入聊天站地址、登录态（登录按钮/用户名）与站内公告。"""
+    return {"chat_url": CHAT_URL, "username": current_username(),
+            "notice_html": read_notice()}
 
 
 def current_username():
@@ -165,6 +189,9 @@ def index():
 @app.route("/<slug>")
 def article(slug):
     safe = re.sub(r"[^0-9a-zA-Z_-]", "", slug)
+    # 下划线开头的文件是内部文件（比如 _notice.md 公告），不是教程正文
+    if not safe or safe.startswith("_"):
+        abort(404)
     fn = safe + ".md"
     if not os.path.exists(os.path.join(CONTENT, fn)):
         abort(404)
@@ -173,7 +200,7 @@ def article(slug):
     user = current_username()
     if level != "入门" and not user:
         return render_template("gate.html", title=title, level=level), 200
-    html = markdown.markdown(body, extensions=["fenced_code", "tables", "sane_lists"])
+    html = markdown.markdown(body, extensions=MARKDOWN_EXTS)
     return render_template("article.html", title=title, content=html, level=level)
 
 

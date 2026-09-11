@@ -56,6 +56,17 @@
   .nav-login:hover { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(29, 104, 255, .4); }
   .nav-user { color: var(--cyan-soft); font-weight: 800; font-size: 13px; }
 
+  .notice-bar {
+    width: min(1180px, calc(100vw - 48px)); margin: 14px auto 0; display: flex;
+    gap: 11px; align-items: flex-start; padding: 13px 18px; border-radius: 14px;
+    background: linear-gradient(90deg, rgba(41,103,255,.10), rgba(15,181,201,.10));
+    border: 1px solid rgba(41,103,255,.22); font-size: 14px; line-height: 1.7;
+  }
+  .notice-bar .notice-dot { flex: 0 0 auto; width: 8px; height: 8px; margin-top: 8px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 0 4px rgba(15,181,201,.15); }
+  .notice-bar b { color: var(--cyan-soft); }
+  .notice-bar p { margin: 0; }
+  .notice-bar a { color: var(--blue); font-weight: 700; text-decoration: underline; }
+
   .page-head { width: var(--container); margin: 0 auto; padding: 52px 0 8px; }
   .eyebrow {
     display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px;
@@ -163,6 +174,12 @@
     {% endif %}
   </nav>
 </header>
+{% if notice_html %}
+<div class="notice-bar" role="status">
+  <span class="notice-dot"></span>
+  <div><b>社团公告：</b>{{ notice_html|safe }}</div>
+</div>
+{% endif %}
 <div class="container">
 {% block content %}{% endblock %}
 </div>
