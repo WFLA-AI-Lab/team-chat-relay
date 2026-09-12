@@ -14,7 +14,9 @@
 不联网、不碰生产库：临时 sqlite + 造数据；OpenWebUI 完全不需要。
 """
 
+import datetime
 import os
+import re
 import sqlite3
 import sys
 import tempfile
@@ -52,17 +54,27 @@ def seed():
     conn.row_factory = sqlite3.Row
     school_auth.ensure_tables(conn)
 
-    now = "2026-09-14 10:00:00"
+    def ago(days, clock="09:00:00"):
+        """相对"今天"的过去某天。
+
+        夹具必须用相对日期：原来写死 2026-09-14（还在未来），结果页面上
+        "今日试聊" 显示 0，跟注释里的 3 对不上 —— 差点被当成应用的 bug 去查。
+        """
+        day = datetime.datetime.now() - datetime.timedelta(days=days)
+        return day.strftime("%Y-%m-%d ") + clock
+
+    now = ago(0, "10:00:00")
     conn.execute("INSERT INTO users(email,name,is_admin,created_at) VALUES(?,?,?,?)",
-                 ("president@example.com", "社长", 1, "2026-08-01 10:00:00"))
+                 ("president@example.com", "社长", 1, ago(40)))
     admin_id = conn.execute("SELECT id FROM users WHERE email='president@example.com'").fetchone()["id"]
-    for i, (email, name, ts) in enumerate([
-        ("zhang@example.com", "张三", "2026-09-12 09:00:00"),
-        ("li@example.com", "李四", "2026-09-10 09:00:00"),
-        ("wang@example.com", "王五", "2026-07-01 09:00:00"),
-    ]):
+    # 近 7 天新增用户 = 2（张三、李四）；王五是 70 天前的老账号，不该被算进去
+    for email, name, created in [
+        ("zhang@example.com", "张三", ago(1)),
+        ("li@example.com", "李四", ago(3)),
+        ("wang@example.com", "王五", ago(70)),
+    ]:
         conn.execute("INSERT INTO users(email,name,is_admin,created_at) VALUES(?,?,?,?)",
-                     (email, name, 0, ts))
+                     (email, name, 0, created))
     member_id = conn.execute("SELECT id FROM users WHERE email='zhang@example.com'").fetchone()["id"]
 
     # agents: 2 已上架 / 1 待审 / 1 已拒
@@ -83,16 +95,16 @@ def seed():
     school_auth.add_entries(conn, [("2024001", "老社员")], now)
     school_auth.set_active(conn, "2024001", False)
     conn.execute("INSERT INTO school_accounts(code,owu_email,owu_password,created_at) "
-                 "VALUES('2025001','2025001@stu.wfla-ailab.top','pw','2026-09-05 09:00:00')")
+                 "VALUES('2025001','2025001@stu.wfla-ailab.top','pw',?)", (ago(6),))
     school_auth.record_request(conn, "2025099", "赵六", "高一3班，想参加周三活动", now)
     school_auth.record_request(conn, "2025098", "钱七", "想学做智能体", now)
     school_auth.record_request(conn, "2025097", "孙八", "已加群", now)
     conn.execute("UPDATE join_requests SET handled=1 WHERE code='2025097'")
 
     # 用量：今日试聊 3 / 近 7 天 5
-    for ts in ("2026-09-14 09:01:00", "2026-09-14 09:02:00", "2026-09-14 09:03:00",
-               "2026-09-12 09:00:00", "2026-09-10 09:00:00"):
-        conn.execute("INSERT INTO chat_log(user_id,created_at) VALUES(?,?)", (member_id, ts))
+    for created in (ago(0, "09:01:00"), ago(0, "09:02:00"), ago(0, "09:03:00"),
+                    ago(2), ago(4)):
+        conn.execute("INSERT INTO chat_log(user_id,created_at) VALUES(?,?)", (member_id, created))
 
     # 作品：2 已上架 / 1 待审
     for name, owner, repo, status in (
@@ -120,10 +132,10 @@ def seed():
                      (pid, pos, sname, "deepseek-chat", "你是语文老师", inst, "0.7", "2048"))
     conn.execute("INSERT INTO pipelines(name,description,author_id,is_shared,created_at,updated_at) "
                  "VALUES('物理题讲解','共享给全社',?,1,?,?)", (admin_id, now, now))
-    for i in range(4):
+    # 运行 4 次，其中近 7 天 3 次（第 4 次是 20 天前的老记录）
+    for i, created in enumerate((ago(1), ago(2), ago(3), ago(20))):
         conn.execute("INSERT INTO pipeline_runs(pipeline_id,user_id,input,stages,created_at) "
-                     "VALUES(?,?,?,?,?)", (pid, member_id, "输入" + str(i), "[]",
-                                           "2026-09-1%d 09:00:00" % (i + 1)))
+                     "VALUES(?,?,?,?,?)", (pid, member_id, "输入" + str(i), "[]", created))
 
     conn.execute("INSERT INTO settings(key,value) VALUES('notice',?)", (NOTICE,))
     conn.commit()
@@ -149,6 +161,16 @@ def render():
         html = c.get("/admin/stats").get_data(as_text=True)
         assert "需要你处理" in html, "看板没渲染出来"
         assert "notice" in html or "公告" in html, "公告编辑区没渲染出来"
+        # 页面上的数字必须==上面造的假数据。以前这里只有注释写着"今日试聊 3"，
+        # 实际因为日期写死成未来某天，页面显示 0，没人发现 —— 靠视觉复核才看出来。
+        got = dict((label.strip(), value.strip()) for label, _w, value in re.findall(
+            r'class="muted">([^<]+)</span>.*?bar-fill" style="width: ([\d.]+)%;".*?'
+            r'class="bar-value">([^<]*)</span>', html, re.S))
+        for label, want in (("今日试聊", "3"), ("近 7 天试聊", "5"), ("流水线运行总数", "4"),
+                            ("近 7 天流水线运行", "3"), ("近 7 天新增用户", "2"),
+                            ("平台用户", "4"), ("已上架 Agent", "2"), ("待审作品", "1")):
+            assert got.get(label) == want, \
+                "看板「%s」= %s，期望 %s（假数据和页面不一致）" % (label, got.get(label), want)
         dump(html, "admin-stats.html")
 
         # 2) 流水线详情（作者本人 → 有"复制到我的"）
