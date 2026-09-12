@@ -45,6 +45,25 @@ arena.app.config["SESSION_COOKIE_SECURE"] = False
 NOTICE = ("【9/14 公告】周三 16:30 社团活动改到 B301；本周擂台主题「学习搭子」，"
           "作品截止周五 20:00。")
 
+# seed() 建好的 id 记在这里：--serve 不能自己再 seed 一次（第二次会撞
+# users.email 的 UNIQUE 约束，服务直接起不来），复用这份就对了。
+SEEDED = {}
+
+# 本地预览（--serve）用的自动登录。关键：必须在**应用处理第一次请求之前**注册，
+# 否则 Flask 直接拒绝：setup method 'before_request' can no longer be called...
+# 所以放模块级注册、用开关控制：只有 --serve 时才填值才生效，
+# 这样 render() 里"以普通社员身份渲染作品页"那种显式 session 不会被覆盖。
+SERVE_ADMIN = []
+
+
+@arena.app.before_request
+def _auto_login_when_serving():
+    if SERVE_ADMIN:
+        from flask import session
+
+        if "uid" not in session:
+            session["uid"] = SERVE_ADMIN[0]
+
 
 def seed():
     """造一份看起来像真数据的数据（数字和看板上的条形图对得上）。"""
@@ -140,6 +159,7 @@ def seed():
     conn.execute("INSERT INTO settings(key,value) VALUES('notice',?)", (NOTICE,))
     conn.commit()
     conn.close()
+    SEEDED.update({"admin_id": admin_id, "member_id": member_id, "pid": pid})
     return admin_id, member_id, pid
 
 
@@ -212,14 +232,11 @@ if __name__ == "__main__":
         for page in written:
             shot(page)
     if "--serve" in sys.argv:
+        # 复用 render() 已经建好的数据，自动登录取模块级注册好的钩子。
+        # （原来这里既又 seed() 了一次、又注册了 @before_request，两步都会炸。）
+        SERVE_ADMIN.append(SEEDED["admin_id"])
         print("serving http://127.0.0.1:8098/admin/stats （Ctrl+C 结束；管理员已登录）")
-        admin_id, member_id, pid = seed()
         arena.app.secret_key = "render-secret"
-
-        @arena.app.before_request
-        def _auto_login():
-            from flask import session
-            session["uid"] = admin_id
 
         threading.Thread(target=lambda: arena.app.run(host="127.0.0.1", port=8098),
                          daemon=True).start()
