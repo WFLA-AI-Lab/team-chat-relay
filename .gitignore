@@ -15,3 +15,7 @@ __pycache__/
 
 # 渲染复核产出的页面快照（.verify/*.md 之类的文档要留，这些是生成物）
 .verify/render/
+
+# 教程站的站内公告：社长在服务器上直接改这个文件（改完刷新即生效）。
+# 不进版本控制 —— 一旦进了库，服务器上的改动就会和 `git pull` 打架。
+tutorial/content/_notice.md
