@@ -205,6 +205,9 @@ def render():
         html = c2.get("/projects").get_data(as_text=True)
         assert "复制分享文案" in html, "作品页没渲染出分享按钮"
         assert NOTICE[:12] in html, "作品页没渲染出公告横幅"
+        # 导航里必须有作品廊入口：以前只有管理员从看板的"去审核作品"能点到它，
+        # 普通社员根本没有入口 —— 那"一键分享"就等于没做（网页都进不去）。
+        assert "作品廊</a>" in html, "导航里没有作品廊入口"
         dump(html, "projects-share.html")
 
     # 4) 无公告时横幅必须消失（避免空橙条）
